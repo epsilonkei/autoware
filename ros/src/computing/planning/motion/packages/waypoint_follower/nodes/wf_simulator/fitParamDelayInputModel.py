@@ -7,11 +7,15 @@ import pandas as pd
 
 FREQ_SAMPLE = 0.001
 
-def getActValue(path):
+def getActValue(path, speed_type):
     # Read data
     df = pd.read_csv(path, sep=' ')
     tm = np.array(list(df['%time'])) * 1e-9
-    val = np.array(list(df['field']))
+    # Unit Conversion
+    if speed_type:
+        val = np.array(list(df['field'])) / 3.6
+    else:
+        val = np.array(list(df['field']))
     # Calc differential
     dval = (val[2:] - val[:-2]) / (tm[2:] - tm[:-2])
     return tm[1:-1], val[1:-1], dval
@@ -31,9 +35,9 @@ def getLinearInterpolate(_tm, _val, _index, ti):
     val_i = tmp_val + (tmp_nextval - tmp_val) / (tmp_nextt - tmp_t) * (ti - tmp_t)
     return val_i
 
-def getFittingParam(args):
-    tm_cmd, cmd_delay = getCmdValueWithDelay(args.cmd_log, 0)
-    tm_act, act, dact = getActValue(args.act_log)
+def getFittingTimeConstantParam(cmd_log, act_log, delay, speed_type = False):
+    tm_cmd, cmd_delay = getCmdValueWithDelay(cmd_log, delay)
+    tm_act, act, dact = getActValue(act_log, speed_type)
     _t_min = max(tm_cmd[0], tm_act[0])
     _t_max = min(tm_cmd[-1], tm_act[-1])
     tm_cmd = tm_cmd - _t_min
@@ -57,12 +61,36 @@ def getFittingParam(args):
     dact_samp = np.array(dact_samp).reshape(1,-1)
     diff_actcmd_samp = np.array(diff_actcmd_samp).reshape(1,-1)
     tau = -np.dot(diff_actcmd_samp, np.linalg.pinv(dact_samp))[0,0]
-    return tau
+    error = np.linalg.norm(diff_actcmd_samp + tau * dact_samp) / dact_samp.shape[1]
+    return tau, error
+
+MIN_DELAY = 0.0
+MAX_DELAY = 2.0
+DELAY_INCR = 0.1
+
+def getFittingParam(cmd_log, act_log, speed_type = False):
+    delay_range = int((MAX_DELAY - MIN_DELAY) / DELAY_INCR)
+    delays = [MIN_DELAY + i * DELAY_INCR for i in range(delay_range + 1)]
+    error_min = 1.0e10
+    delay_opt = -1
+    tau_opt = -1
+    for delay in delays:
+        tau, error = getFittingTimeConstantParam(cmd_log, act_log, delay, speed_type=speed_type)
+        if error < error_min:
+            error_min = error
+            delay_opt = delay
+            tau_opt = tau
+    return tau_opt, delay_opt, error_min
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Paramter fitting for Input Delay Model (First Order System with Dead Time)')
     parser.add_argument('--cmd_log', '-c', required=True, help='Vehicle command log file')
     parser.add_argument('--act_log', '-a', required=True, help='Vehicle actual status log file')
+    parser.add_argument('--speed_type', '-s', choices=['True', 'False'], \
+                        default='False', help='Type speed or not: Steering Angle = False, velocity = True')
     args = parser.parse_args()
-    tau = getFittingParam(args)
-    print tau
+    if args.speed_type == 'True':
+        tau_opt, delay_opt, error = getFittingParam(args.cmd_log, args.act_log, speed_type=True)
+    else:
+        tau_opt, delay_opt, error = getFittingParam(args.cmd_log, args.act_log, speed_type=False)
+    print tau_opt, delay_opt, error
