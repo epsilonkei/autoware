@@ -4,9 +4,30 @@
 import numpy as np
 import argparse
 import pandas as pd
+import subprocess
+from os import getcwd
+from os.path import dirname, basename, splitext, join, exists
 
 FREQ_SAMPLE = 0.001
 CUTOFF_TIME = 15.0
+
+def rel2abs(path):
+    '''
+    Return absolute path from relative path input
+    '''
+    return join(getcwd(), path)
+
+def rosbag_to_csv(path, topic_name):
+    name = splitext(basename(path))[0]
+    suffix = topic_name.replace('/', '-')
+    output_path = join(dirname(path), name + "_" + suffix + ".csv")
+    if exists(output_path):
+        return output_path
+    else:
+        command = "rostopic echo -b {0} -p /{1} | sed -e 's/,/ /g' > {2}".format(path, topic_name, output_path)
+        print command
+        subprocess.check_call(command, shell=True)
+        return output_path
 
 def getActValue(df, speed_type):
     tm = np.array(list(df['%time'])) * 1e-9
@@ -81,17 +102,17 @@ def getFittingParam(cmd_data, act_data, speed_type = False):
     return tau_opt, delay_opt, error_min
 
 if __name__ == '__main__':
-    steer_cmd_log = 'vehicle_test_20190218-164427.cmd_steering_angle'
-    steer_act_log = 'vehicle_test_20190218-164427.vehicle_status_angle'
-    vel_cmd_log = 'vehicle_test_20190218-164427.cmd_linear_velocity'
-    vel_act_log = 'vehicle_test_20190218-164427.vehicle_status_speed'
-    steer_cmd_data = pd.read_csv(steer_cmd_log, sep=' ')
-    steer_act_data = pd.read_csv(steer_act_log, sep=' ')
-    vel_cmd_data = pd.read_csv(vel_cmd_log, sep=' ')
-    vel_act_data = pd.read_csv(vel_act_log, sep=' ')
-    tau_opt, delay_opt, error = getFittingParam(steer_cmd_data, \
-                                                steer_act_data, speed_type=False)
+    topics = [ 'vehicle_cmd/ctrl_cmd/steering_angle', 'vehicle_status/angle', \
+             'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed']
+    pd_data = [None] * len(topics)
+    parser = argparse.ArgumentParser(description='Paramter fitting for Input Delay Model (First Order System with Dead Time) with rosbag file input')
+    parser.add_argument('--bag_file', '-b', required=True, type=str, help='rosbag file', metavar='file')
+    args = parser.parse_args()
+
+    for i, topic in enumerate(topics):
+        csv_log = rosbag_to_csv(rel2abs(args.bag_file), topic)
+        pd_data[i] = pd.read_csv(csv_log, sep=' ')
+    tau_opt, delay_opt, error = getFittingParam(pd_data[0], pd_data[1], speed_type=False)
     print ('Steer angle: tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
-    tau_opt, delay_opt, error = getFittingParam(vel_cmd_data, \
-                                                vel_act_data, speed_type=True)
-    print ('Velocity:    tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
+    tau_opt, delay_opt, error = getFittingParam(pd_data[2], pd_data[3], speed_type=True)
+    print ('Velocity   : tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
