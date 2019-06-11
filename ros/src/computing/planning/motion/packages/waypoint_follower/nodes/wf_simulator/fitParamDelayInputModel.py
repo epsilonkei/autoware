@@ -3,10 +3,15 @@
 
 import numpy as np
 import argparse
-import pandas as pd
 import subprocess
+import sys
 from os import getcwd
 from os.path import dirname, basename, splitext, join, exists
+try:
+    import pandas as pd
+except ImportError:
+    print ('Please install pandas. See http://pandas.pydata.org/pandas-docs/stable/')
+    sys.exit(1)
 
 FREQ_SAMPLE = 0.001
 CUTOFF_TIME = 15.0
@@ -20,12 +25,12 @@ def rel2abs(path):
 def rosbag_to_csv(path, topic_name):
     name = splitext(basename(path))[0]
     suffix = topic_name.replace('/', '-')
-    output_path = join(dirname(path), name + "_" + suffix + ".csv")
+    output_path = join(dirname(path), name + '_' + suffix + '.csv')
     if exists(output_path):
         return output_path
     else:
         command = "rostopic echo -b {0} -p /{1} | sed -e 's/,/ /g' > {2}".format(path, topic_name, output_path)
-        print command
+        print (command)
         subprocess.check_call(command, shell=True)
         return output_path
 
@@ -103,7 +108,7 @@ def getFittingParam(cmd_data, act_data, speed_type = False):
 
 if __name__ == '__main__':
     topics = [ 'vehicle_cmd/ctrl_cmd/steering_angle', 'vehicle_status/angle', \
-             'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed']
+               'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed']
     pd_data = [None] * len(topics)
     parser = argparse.ArgumentParser(description='Paramter fitting for Input Delay Model (First Order System with Dead Time) with rosbag file input')
     parser.add_argument('--bag_file', '-b', required=True, type=str, help='rosbag file', metavar='file')
