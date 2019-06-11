@@ -217,7 +217,8 @@ void WFSimulator::callbackVehicleCmd(const autoware_msgs::VehicleCmdConstPtr &ms
     current_vehicle_cmd_ptr_ = std::make_shared<autoware_msgs::VehicleCmd>(*msg);
     if (vehicle_model_type_ == VehicleModelType::IDEAL_TWIST ||
         vehicle_model_type_ == VehicleModelType::DELAY_TWIST ||
-        vehicle_model_type_ == VehicleModelType::CONST_ACCEL_TWIST)
+        vehicle_model_type_ == VehicleModelType::CONST_ACCEL_TWIST ||
+        vehicle_model_type_ == VehicleModelType::IDEAL_FORKLIFT_RLS)
     {
         Eigen::VectorXd input(2);
         input << msg->twist_cmd.twist.linear.x, msg->twist_cmd.twist.angular.z;
@@ -225,7 +226,6 @@ void WFSimulator::callbackVehicleCmd(const autoware_msgs::VehicleCmdConstPtr &ms
     }
     else if (vehicle_model_type_ == VehicleModelType::IDEAL_STEER ||
              vehicle_model_type_ == VehicleModelType::DELAY_STEER ||
-             vehicle_model_type_ == VehicleModelType::IDEAL_FORKLIFT_RLS ||
              vehicle_model_type_ == VehicleModelType::DELAY_FORKLIFT_RLS)
     {
         Eigen::VectorXd input(2);

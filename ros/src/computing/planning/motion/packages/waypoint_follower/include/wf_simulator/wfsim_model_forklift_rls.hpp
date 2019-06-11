@@ -32,7 +32,7 @@
 class WFSimModelIdealForkliftRLS : public WFSimModelInterface
 {
 public:
-    WFSimModelIdealForkliftRLS(double vx_lim, double steer_lim, double wheelbase, double tread);
+    WFSimModelIdealForkliftRLS(double vx_lim, double angvel_lim, double wheelbase, double tread);
     ~WFSimModelIdealForkliftRLS() = default;
 
 private:
@@ -45,15 +45,14 @@ private:
     enum IDX_U
     {
         VX_DES = 0,
-        STEER_DES,
+        WZ_DES,
     };
 
     const double vx_lim_;
-    const double steer_lim_;
+    const double angvel_lim_;
     const double wheelbase_;
     const double tread_;
 
-    double convertSteerToCurvature(const double &steer);
 
     double getX() override;
     double getY() override;
@@ -67,7 +66,7 @@ private:
 class WFSimModelTimeDelayForkliftRLS : public WFSimModelInterface
 {
 public:
-    WFSimModelTimeDelayForkliftRLS(double vx_lim, double steer_lim, double wheelbase, double tread, double dt,
+    WFSimModelTimeDelayForkliftRLS(double vx_lim, double angvel_lim, double wheelbase, double tread, double dt,
                                    double vx_delay, double vx_time_constant, double steer_delay, double steer_time_constant);
     ~WFSimModelTimeDelayForkliftRLS() = default;
 
