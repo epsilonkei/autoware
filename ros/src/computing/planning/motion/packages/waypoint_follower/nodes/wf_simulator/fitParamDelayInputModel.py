@@ -100,10 +100,13 @@ def getFittingParam(cmd_data, act_data, speed_type = False):
     tau_opt = -1
     for delay in delays:
         tau, error = getFittingTimeConstantParam(cmd_data, act_data, delay, speed_type=speed_type)
-        if error < error_min:
-            error_min = error
-            delay_opt = delay
-            tau_opt = tau
+        if tau > 0:
+            if error < error_min:
+                error_min = error
+                delay_opt = delay
+                tau_opt = tau
+        else:
+            break
     return tau_opt, delay_opt, error_min
 
 if __name__ == '__main__':
