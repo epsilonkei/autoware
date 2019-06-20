@@ -14,7 +14,14 @@ except ImportError:
     sys.exit(1)
 
 FREQ_SAMPLE = 0.001
-CUTOFF_TIME = 15.0
+
+# low pass filter
+def lowpass_filter(data, cutoff_freq=2, order=1, dt=FREQ_SAMPLE):
+    tau = 1.0 / (2 * np.pi * cutoff_freq)
+    for _ in range(order):
+        for i in range(1,len(data)):
+            data[i] = (tau / (tau + dt) * data[i-1] + dt / (tau + dt) * data[i])
+    return data
 
 def rel2abs(path):
     '''
@@ -59,20 +66,20 @@ def getLinearInterpolate(_tm, _val, _index, ti):
     return val_i
 
 def getFittingTimeConstantParam(cmd_data, act_data, \
-                                delay, speed_type = False):
+                                delay, args, speed_type = False):
     tm_cmd, cmd_delay = getCmdValueWithDelay(cmd_data, delay)
     tm_act, act, dact = getActValue(act_data, speed_type)
     _t_min = max(tm_cmd[0], tm_act[0])
     _t_max = min(tm_cmd[-1], tm_act[-1])
     tm_cmd = tm_cmd - _t_min
     tm_act = tm_act - _t_min
-    MAX_CNT = int((_t_max - _t_min - CUTOFF_TIME) / FREQ_SAMPLE)
+    MAX_CNT = int((_t_max - _t_min - args.cutoff_time) / FREQ_SAMPLE)
     dact_samp = [None] * MAX_CNT
     diff_actcmd_samp = [None] * MAX_CNT
     ind_cmd = 0
     ind_act = 0
     for ind in range(MAX_CNT):
-        ti = ind * FREQ_SAMPLE + CUTOFF_TIME
+        ti = ind * FREQ_SAMPLE + args.cutoff_time
         while (tm_cmd[ind_cmd + 1] < ti):
             ind_cmd += 1
         cmd_delay_i = getLinearInterpolate(tm_cmd, cmd_delay, ind_cmd, ti)
@@ -82,24 +89,25 @@ def getFittingTimeConstantParam(cmd_data, act_data, \
         dact_i = getLinearInterpolate(tm_act, dact, ind_act, ti)
         dact_samp[ind] = dact_i
         diff_actcmd_samp[ind] = act_i - cmd_delay_i
-    dact_samp = np.array(dact_samp).reshape(1,-1)
-    diff_actcmd_samp = np.array(diff_actcmd_samp).reshape(1,-1)
+    dact_samp = np.array(dact_samp)
+    diff_actcmd_samp = np.array(diff_actcmd_samp)
+    if args.cutoff_freq > 0:
+        dact_samp = lowpass_filter(dact_samp, cutoff_freq=args.cutoff_freq)
+        diff_actcmd_samp = lowpass_filter(diff_actcmd_samp, cutoff_freq=args.cutoff_freq)
+    dact_samp = dact_samp.reshape(1,-1)
+    diff_actcmd_samp = diff_actcmd_samp.reshape(1,-1)
     tau = -np.dot(diff_actcmd_samp, np.linalg.pinv(dact_samp))[0,0]
     error = np.linalg.norm(diff_actcmd_samp + tau * dact_samp) / dact_samp.shape[1]
     return tau, error
 
-MIN_DELAY = 0.0
-MAX_DELAY = 2.0
-DELAY_INCR = 0.1
-
-def getFittingParam(cmd_data, act_data, speed_type = False):
-    delay_range = int((MAX_DELAY - MIN_DELAY) / DELAY_INCR)
-    delays = [MIN_DELAY + i * DELAY_INCR for i in range(delay_range + 1)]
+def getFittingParam(cmd_data, act_data, args, speed_type = False):
+    delay_range = int((args.max_delay - args.min_delay) / args.delay_incr)
+    delays = [args.min_delay + i * args.delay_incr for i in range(delay_range + 1)]
     error_min = 1.0e10
     delay_opt = -1
     tau_opt = -1
     for delay in delays:
-        tau, error = getFittingTimeConstantParam(cmd_data, act_data, delay, speed_type=speed_type)
+        tau, error = getFittingTimeConstantParam(cmd_data, act_data, delay, args, speed_type=speed_type)
         if tau > 0:
             if error < error_min:
                 error_min = error
@@ -115,12 +123,17 @@ if __name__ == '__main__':
     pd_data = [None] * len(topics)
     parser = argparse.ArgumentParser(description='Paramter fitting for Input Delay Model (First Order System with Dead Time) with rosbag file input')
     parser.add_argument('--bag_file', '-b', required=True, type=str, help='rosbag file', metavar='file')
+    parser.add_argument('--cutoff_time', default=1.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
+    parser.add_argument('--cutoff_freq', default=0.1, type=float, help='Cutoff freq for low-pass filter[Hz], negative value will disable low-pass filter (default is 0.1)')
+    parser.add_argument('--min_delay', default=0.1, type=float, help='Min value for searching delay loop (default is 0.1)')
+    parser.add_argument('--max_delay', default=1.0, type=float, help='Max value for searching delay loop (default is 1.0)')
+    parser.add_argument('--delay_incr', default=0.01, type=float, help='Step value for searching delay loop (default is 0.01)')
     args = parser.parse_args()
 
     for i, topic in enumerate(topics):
         csv_log = rosbag_to_csv(rel2abs(args.bag_file), topic)
         pd_data[i] = pd.read_csv(csv_log, sep=' ')
-    tau_opt, delay_opt, error = getFittingParam(pd_data[0], pd_data[1], speed_type=False)
+    tau_opt, delay_opt, error = getFittingParam(pd_data[0], pd_data[1], args, speed_type=False)
     print ('Steer angle: tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
-    tau_opt, delay_opt, error = getFittingParam(pd_data[2], pd_data[3], speed_type=True)
+    tau_opt, delay_opt, error = getFittingParam(pd_data[2], pd_data[3], args, speed_type=True)
     print ('Velocity   : tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
