@@ -118,7 +118,7 @@ class WFSimulator(object):
     def plotSimulateResult(self):
         if self.__vehicle_model_type == self.__VehicleModelType[self.__DELAY_STEER]:
             fig = plt.figure(figsize=(16, 16))
-            ax1 = fig.add_subplot(2, 1, 1)
+            ax1 = fig.add_subplot(211)
             ax1.plot(self.tm_cmd, self.input_cmd[0], label='vehicle_cmd/velocity')
             ax1.plot(self.tm_act, self.state_act[0], label='vehicle_status/velocity')
             ax1.plot(self.tm_act, self.sim_state_act[:,3], # __VX
@@ -126,7 +126,7 @@ class WFSimulator(object):
             ax1.set_ylabel("Velocity [m/s]")
             ax1.set_xlabel("Time [s]")
             ax1.legend(loc='best')
-            ax2 = fig.add_subplot(2, 1, 2)
+            ax2 = fig.add_subplot(212, sharex=ax1)
             ax2.plot(self.tm_cmd, self.input_cmd[1], label='vehicle_cmd/steer')
             ax2.plot(self.tm_act, self.state_act[1], label='vehicle_status/steer')
             ax2.plot(self.tm_act, self.sim_state_act[:,4], # __STEER
