@@ -4,6 +4,7 @@
 from VehicleModel.VehicleModelTimeDelay import VehicleModelTimeDelaySteer
 import numpy as np
 import matplotlib.pyplot as plt
+import bisect
 
 def getLinearInterpolate(tm0, tm1, val0, val1, tm, __EPS=1e-9):
     if (tm1 - tm0) < __EPS:
@@ -114,6 +115,13 @@ class WFSimulator(object):
                 self.updateVehicleCmd(self.input_cmd[:, ind_cmd])
             ind_cmd += 1
         self.sim_state_act = np.array(self.sim_state_act)
+
+    def MeanSquaredError(self, cutoff_time = 0.0):
+        assert len(self.sim_state_act) != 0, 'Simulate should be run before calculating MeanSquaredError'
+        cutoff_index = bisect.bisect_left(self.tm_act, cutoff_time)
+        mse_vel = (np.square(self.sim_state_act[cutoff_index:,3] - self.state_act[0,cutoff_index:])).mean(axis=0)
+        mse_steer = (np.square(self.sim_state_act[cutoff_index:,4] - self.state_act[1,cutoff_index:])).mean(axis=0)
+        return mse_vel, mse_steer
 
     def plotSimulateResult(self):
         if self.__vehicle_model_type == self.__VehicleModelType[self.__DELAY_STEER]:

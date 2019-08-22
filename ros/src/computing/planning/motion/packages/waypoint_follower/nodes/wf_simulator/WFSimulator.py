@@ -23,7 +23,7 @@ if __name__ == '__main__':
     pd_data = [None] * len(topics)
     parser = argparse.ArgumentParser(description='wf simulator python Implement with rosbag file input')
     parser.add_argument('--bag_file', '-b', required=True, type=str, help='rosbag file', metavar='file')
-    # parser.add_argument('--cutoff_time', default=1.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
+    parser.add_argument('--cutoff_time', '-c', default=1.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
     args = parser.parse_args()
     for i, topic in enumerate(topics):
         csv_log = rosbag_to_csv(rel2abs(args.bag_file), topic)
@@ -43,5 +43,9 @@ if __name__ == '__main__':
     # wfSim.setInitialState()
     # Run simulate
     wfSim.simulate()
+    # simulate results MeanSquaredError
+    mse_vel, mse_steer = wfSim.MeanSquaredError(cutoff_time = args.cutoff_time)
+    print ('Velocity Mean Squared Error:       %2.6e'%(mse_vel))
+    print ('Steering Angle Mean Squared Error: %2.6e'%(mse_steer))
     # Plot simulate results
     wfSim.plotSimulateResult()
