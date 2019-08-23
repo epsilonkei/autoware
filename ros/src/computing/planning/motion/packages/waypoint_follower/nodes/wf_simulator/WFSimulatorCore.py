@@ -25,10 +25,11 @@ class WFSimulator(object):
     def __init__(self,
                  _tm_cmd, _input_cmd,
                  _tm_act, _state_act,
-                 loop_rate, wheel_base,
+                 loop_rate, wheel_base, cutoff_time,
                  vehicle_model = 'DELAY_STEER'):
         self.__wheel_base = wheel_base
         self.__dt = 1.0 / loop_rate
+        self.__cutoff_time = cutoff_time
         self.tm_cmd = _tm_cmd
         self.input_cmd = _input_cmd
         self.tm_act = _tm_act
@@ -51,16 +52,44 @@ class WFSimulator(object):
         else:
             raise NotImplementedError
         # For update simulation result list
-        self.__prev_tm = 0
+        self.__prev_tm = 0.0
         self.__prev_state = self.__vehicle_model.getState()
+        # For simulate
+        self.__tm = 0.0
+        self.__tm_end = 0.0
+        self.__ind_cmd = 0
+        self.__ind_act = 0
 
     def updateVehicleCmd(self, input):
         self.__vehicle_model.setInput(input)
 
-    def updateSimulateAct(self, prev_tm, tm, tm_act):
+    def calcSimulateAct(self, prev_tm, tm, tm_act):
         state = self.__vehicle_model.getState()
         act_state = getLinearInterpolate(prev_tm, tm,
                                          self.__prev_state, state, tm_act)
+        return act_state
+
+    def calcLinearInterpolateActValue(self):
+        act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
+                                         self.tm_act[self.__ind_act],
+                                         self.state_act[:,self.__ind_act - 1],
+                                         self.state_act[:,self.__ind_act],
+                                         self.__tm)
+        return act_state
+
+    def calcLinearInterpolateNextActValue(self):
+        if self.__tm + self.__dt < self.tm_act[self.__ind_act] or self.__ind_act < len(self.tm_act):
+            act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
+                                             self.tm_act[self.__ind_act],
+                                             self.state_act[:,self.__ind_act - 1],
+                                             self.state_act[:,self.__ind_act],
+                                             self.__tm + self.__dt)
+        else:
+            act_state = getLinearInterpolate(self.tm_act[self.__ind_act],
+                                             self.tm_act[self.__ind_act + 1],
+                                             self.state_act[:,self.__ind_act],
+                                             self.state_act[:,self.__ind_act + 1],
+                                             self.__tm + self.__dt)
         return act_state
 
     def setInitialState(self): # TODO: using geometry_msg Pose and Twist
@@ -76,49 +105,60 @@ class WFSimulator(object):
         else:
             raise NotImplementedError
 
-    def simulate(self):
+    def updateSimulationAct(self):
+        nextActTm = self.tm_act[self.__ind_act]
+        if self.__tm >= nextActTm:
+            act_state = self.calcSimulateAct(self.__prev_tm, self.__tm, nextActTm)
+            self.sim_state_act.append(act_state)
+            self.__ind_act += 1
+
+    def prevSimulate(self):
         self.setInitialState()
         # Clear simulation result list
         self.sim_state_act = []
-        tm = min(self.tm_cmd[0], self.tm_act[0])
+        self.__tm = min(self.tm_cmd[0], self.tm_act[0])
         # Remove offset in tm_cmd and tm_act
-        self.tm_cmd -= tm
-        self.tm_act -= tm
-        tm = 0.0
+        self.tm_cmd -= self.__tm
+        self.tm_act -= self.__tm
+        self.__tm = 0.0
         # ##
-        tm_end = max(self.tm_cmd[-1], self.tm_act[-1])
-        self.__prev_tm = tm
+        self.__tm_end = max(self.tm_cmd[-1], self.tm_act[-1])
+        self.__prev_tm = self.__tm
         self.__prev_state = self.__vehicle_model.getState()
-        ind_cmd = 0
-        ind_act = 0
-        ''' Update Simulation Act Value Start'''
-        nextUpdateActTm = self.tm_act[ind_act]
-        if tm >= nextUpdateActTm:
-            act_state = self.updateSimulateAct(self.__prev_tm, tm, nextUpdateActTm)
-            self.sim_state_act.append(act_state)
-            ind_act += 1
-        ''' Update Simulation Act Value End'''
-        while (tm < tm_end):
-            while tm < (self.tm_cmd[ind_cmd] if ind_cmd < len(self.tm_cmd) else tm_end):
-                self.__prev_state = self.__vehicle_model.getState()
-                self.__vehicle_model.updateRungeKutta(self.__dt)
-                tm += self.__dt
-                ''' Update Simulation Act Value Start'''
-                nextUpdateActTm = self.tm_act[ind_act]
-                if tm >= nextUpdateActTm:
-                    act_state = self.updateSimulateAct(self.__prev_tm, tm,
-                                                       nextUpdateActTm)
-                    self.sim_state_act.append(act_state)
-                    ind_act += 1
-                ''' Update Simulation Act Value End'''
-            if (ind_cmd < len(self.tm_cmd)):
-                self.updateVehicleCmd(self.input_cmd[:, ind_cmd])
-            ind_cmd += 1
+        self.__ind_cmd = 0
+        self.__ind_act = 0
+        self.updateSimulationAct()
+
+    def getVehicleState(self):
+        return self.__vehicle_model.getState()
+
+    def simulateOneStep(self):
+        if self.__ind_cmd < len(self.tm_cmd) and self.__tm >= self.tm_cmd[self.__ind_cmd]:
+            self.updateVehicleCmd(self.input_cmd[:, self.__ind_cmd])
+            self.__ind_cmd += 1
+        self.__prev_state = self.__vehicle_model.getState()
+        self.__vehicle_model.updateRungeKutta(self.__dt)
+        self.__tm += self.__dt
+        self.updateSimulationAct()
+
+    def isSimulateEpochFinish(self):
+        return self.__tm < self.__tm_end
+
+    def isInCutoffTime(self):
+        return self.__tm < self.__cutoff_time
+
+    def wrapSimStateAct(self):
         self.sim_state_act = np.array(self.sim_state_act)
 
-    def MeanSquaredError(self, cutoff_time = 0.0):
+    def simulate(self):
+        self.prevSimulate()
+        while self.isSimulateEpochFinish():
+            self.simulateOneStep()
+        self.wrapSimStateAct()
+
+    def MeanSquaredError(self):
         assert len(self.sim_state_act) != 0, 'Simulate should be run before calculating MeanSquaredError'
-        cutoff_index = bisect.bisect_left(self.tm_act, cutoff_time)
+        cutoff_index = bisect.bisect_left(self.tm_act, self.__cutoff_time)
         mse_vel = (np.square(self.sim_state_act[cutoff_index:,3] - self.state_act[0,cutoff_index:])).mean(axis=0)
         mse_steer = (np.square(self.sim_state_act[cutoff_index:,4] - self.state_act[1,cutoff_index:])).mean(axis=0)
         return mse_vel, mse_steer
