@@ -54,8 +54,16 @@ class RNNSteeringModel(Chain):
         self._cutoff_time = cutoff_time
 
     def predictNextState(self, state):
-        # Calc physics function #TODO: need to run prevSimulate previously
-        self.physModel.simulateOneStep()
+        '''
+        return RNN predict + Physics function
+        @override of WFSimulator.simulateOneStep()
+        '''
+        # Update Vehicle Cmd
+        self.physModel.updateVehicleCmd()
+        # Save prev_state
+        self.physModel.savePrevState()
+        # Calculate Vehicle State (Eg: Runge-Kutta)
+        self.physModel.calcVehicleState()
         physPred = self.physModel.getVehicleState()
         if self.__onlySim:
             nextState = physPred
@@ -63,6 +71,15 @@ class RNNSteeringModel(Chain):
             _state = state.reshape(1, -1) # TODO
             RNNpred = self.predictor(_state)
             nextState = RNNpred.reshape(1, -1) + physPred
+        # Update simulation time
+        self.physModel.updateSimulationTime()
+        # Update Simulation Act
+        if self.__onlySim:
+            self.physModel.updateSimulationActValue(nextState)
+        else:
+            self.physModel.updateSimulationActValue(nextState.data.flatten())
+            # Update Vehicle Model State for next calcVehicleModel iteration
+            self.physModel.updateVehicleModelState(nextState.data.flatten())
         return nextState
 
     def __call__(self, state, _actValue):

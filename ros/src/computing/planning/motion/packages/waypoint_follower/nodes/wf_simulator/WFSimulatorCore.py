@@ -60,15 +60,6 @@ class WFSimulator(object):
         self.__ind_cmd = 0
         self.__ind_act = 0
 
-    def updateVehicleCmd(self, input):
-        self.__vehicle_model.setInput(input)
-
-    def calcSimulateAct(self, prev_tm, tm, tm_act):
-        state = self.__vehicle_model.getState()
-        act_state = getLinearInterpolate(prev_tm, tm,
-                                         self.__prev_state, state, tm_act)
-        return act_state
-
     def calcLinearInterpolateActValue(self):
         act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
                                          self.tm_act[self.__ind_act],
@@ -105,10 +96,12 @@ class WFSimulator(object):
         else:
             raise NotImplementedError
 
-    def updateSimulationAct(self):
+    def updateSimulationActValue(self, state):
         nextActTm = self.tm_act[self.__ind_act]
         if self.__tm >= nextActTm:
-            act_state = self.calcSimulateAct(self.__prev_tm, self.__tm, nextActTm)
+            act_state = getLinearInterpolate(self.__prev_tm, self.__tm,
+                                             self.__prev_state, state,
+                                             nextActTm)
             self.sim_state_act.append(act_state)
             self.__ind_act += 1
 
@@ -127,19 +120,34 @@ class WFSimulator(object):
         self.__prev_state = self.__vehicle_model.getState()
         self.__ind_cmd = 0
         self.__ind_act = 0
-        self.updateSimulationAct()
+        self.updateSimulationActValue(self.__vehicle_model.getState())
 
     def getVehicleState(self):
         return self.__vehicle_model.getState()
 
-    def simulateOneStep(self):
-        if self.__ind_cmd < len(self.tm_cmd) and self.__tm >= self.tm_cmd[self.__ind_cmd]:
-            self.updateVehicleCmd(self.input_cmd[:, self.__ind_cmd])
-            self.__ind_cmd += 1
+    def savePrevState(self):
         self.__prev_state = self.__vehicle_model.getState()
+
+    def updateVehicleCmd(self):
+        if self.__ind_cmd < len(self.tm_cmd) and self.__tm >= self.tm_cmd[self.__ind_cmd]:
+            self.__vehicle_model.setInput(self.input_cmd[:, self.__ind_cmd])
+            self.__ind_cmd += 1
+
+    def updateVehicleModelState(self, _state):
+        self.__vehicle_model.setState(_state)
+
+    def calcVehicleState(self):
         self.__vehicle_model.updateRungeKutta(self.__dt)
+
+    def updateSimulationTime(self):
         self.__tm += self.__dt
-        self.updateSimulationAct()
+
+    def simulateOneStep(self):
+        self.updateVehicleCmd()
+        self.savePrevState()
+        self.calcVehicleState()
+        self.updateSimulationTime()
+        self.updateSimulationActValue(self.__vehicle_model.getState())
 
     def isSimulateEpochFinish(self):
         return self.__tm < self.__tm_end
