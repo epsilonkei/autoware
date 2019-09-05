@@ -80,8 +80,8 @@ class RNNSteeringModel(Chain):
         ''' nextState[3] for VELOCITY, nextState[4] for STEERING_ANGLE '''
         vel_loss = F.mean_squared_error(nextState[3], actValue[0])
         steer_loss = F.mean_squared_error(nextState[4], actValue[1])
-        loss = self.__kVel * vel_loss + self.__kSteer * steer_loss
-        return loss
+        # loss = self.__kVel * vel_loss + self.__kSteer * steer_loss
+        return vel_loss, steer_loss
 
 if __name__ == '__main__':
     # Read data from csv
@@ -132,35 +132,40 @@ if __name__ == '__main__':
 
     ''' ======================================== '''
     def updateModel(_model, train=True):
-        loss = 0.0
+        vel_loss = 0.0
+        steer_loss = 0.0
         iter_cnt = 0
         _model.physModel.prevSimulate()
         while _model.physModel.isSimulateEpochFinish():
             state = _model.physModel.getVehicleState()
             actValue = _model.physModel.calcLinearInterpolateActValue()
             if model.physModel.isInCutoffTime():
-                _ = _model(state, actValue)
+                _ , _ = _model(state, actValue)
             else:
-                loss += _model(state, actValue)
+                iter_vel_loss, iter_steer_loss = _model(state, actValue)
+                vel_loss += iter_vel_loss
+                steer_loss += iter_steer_loss
                 iter_cnt += 1
         if train:
             optimizer.target.zerograds()
-            loss.backward()
-            loss.unchain_backward()
+            vel_loss.backward()
+            steer_loss.backward()
+            vel_loss.unchain_backward()
+            steer_loss.unchain_backward()
             optimizer.update()
-        return loss/iter_cnt
+        return vel_loss/iter_cnt, steer_loss/iter_cnt
     ''' ======================================== '''
     if not args.demo:
         for epoch in range(args.epoch):
             model.predictor.reset_state()
-            loss = updateModel(model, train=True)
-            print ('Epoch: %2d, loss: %2.6e'%(epoch, loss.data))
+            vel_loss, steer_loss = updateModel(model, train=True)
+            print ('Epoch: %2d, Velocity loss: %2.6e, Steer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data))
         serializers.save_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
     else:
         serializers.load_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
         # Test
         model.predictor.reset_state()
-        loss = updateModel(model, train=False)
-        print ('Test loss: %2.6e' %(loss.data))
+        vel_loss, steer_loss = updateModel(model, train=False)
+        print ('Test velocity loss: %2.6e, Test steer loss: %2.6e'%(vel_loss.data, steer_loss.data))
         model.physModel.wrapSimStateAct()
         model.physModel.plotSimulateResult()
