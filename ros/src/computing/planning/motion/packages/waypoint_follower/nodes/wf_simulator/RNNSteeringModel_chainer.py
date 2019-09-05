@@ -14,6 +14,7 @@ from chainer import serializers
 import random
 from WFSimulatorCore import WFSimulator
 from fitParamDelayInputModel import rosbag_to_csv, rel2abs
+import time
 import sys
 try:
     import pandas as pd
@@ -23,11 +24,6 @@ except ImportError:
 
 # import cupy
 
-f_model = './saved_model'
-for ele in [f_model]:
-    if not os.path.exists(ele):
-        os.mkdir(ele)
-
 def set_random_seed(seed=0):
     random.seed(seed)
     np.random.seed(seed)
@@ -35,11 +31,11 @@ def set_random_seed(seed=0):
         chainer.cuda.cupy.random.seed(seed)
 
 class RNN(Chain):
-    def __init__(self, n_input, n_units, n_output):
+    def __init__(self, n_input, n_hidden, n_output):
         super(RNN, self).__init__(
-            l1 = L.Linear(n_input, n_units),
-            l2 = L.LSTM(n_units, n_units),
-            l3 = L.Linear(n_units, n_output),
+            l1 = L.Linear(n_input, n_hidden),
+            l2 = L.LSTM(n_hidden, n_hidden),
+            l3 = L.Linear(n_hidden, n_output),
         )
 
     def reset_state(self):
@@ -100,9 +96,17 @@ if __name__ == '__main__':
                         help='Number of epochs for training')
     parser.add_argument('--seed', '-s', type=int, default=0,
                         help='Random seed [0, 2 ** 32), negative value to not set seed, default value is 0')
+    parser.add_argument('--log_suffix', '-l', default='', type=str, help='Saving log folder suffix')
     args = parser.parse_args()
     if args.seed >= 0:
         set_random_seed(args.seed)
+
+    log_folder = time.strftime("%Y%m%d%H%M%S") + '_' + args.log_suffix
+    f_result = log_folder
+    f_model = log_folder + '/saved_model'
+    for ele in [f_result, f_model]:
+        if not os.path.exists(ele):
+            os.makedirs(ele)
 
     for i, topic in enumerate(topics):
         csv_log = rosbag_to_csv(rel2abs(args.bag_file), topic)
@@ -156,10 +160,12 @@ if __name__ == '__main__':
         return vel_loss/iter_cnt, steer_loss/iter_cnt
     ''' ======================================== '''
     if not args.demo:
-        for epoch in range(args.epoch):
-            model.predictor.reset_state()
-            vel_loss, steer_loss = updateModel(model, train=True)
-            print ('Epoch: %2d, Velocity loss: %2.6e, Steer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data))
+        with open(os.path.join(f_result, 'train_log.txt'), mode='w') as log:
+            for epoch in range(args.epoch):
+                model.predictor.reset_state()
+                vel_loss, steer_loss = updateModel(model, train=True)
+                print ('Epoch: %4d, Velocity loss: %2.6e, Steer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data))
+                log.write('%4d %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data))
         serializers.save_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
     else:
         serializers.load_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
