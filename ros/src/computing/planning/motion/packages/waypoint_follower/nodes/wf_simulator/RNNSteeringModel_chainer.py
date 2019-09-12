@@ -52,8 +52,6 @@ class RNNSteeringModel(Chain):
         self.physModel = _physModel
         self.__onlySim = onlySim
         self._cutoff_time = cutoff_time
-        self.__kVel = 1e-4
-        self.__kSteer = 1 - self.__kVel
 
     def predictNextState(self, state):
         # Calc physics function #TODO: need to run prevSimulate previously
@@ -76,7 +74,6 @@ class RNNSteeringModel(Chain):
         ''' nextState[3] for VELOCITY, nextState[4] for STEERING_ANGLE '''
         vel_loss = F.mean_squared_error(nextState[3], actValue[0])
         steer_loss = F.mean_squared_error(nextState[4], actValue[1])
-        # loss = self.__kVel * vel_loss + self.__kSteer * steer_loss
         return vel_loss, steer_loss
 
 if __name__ == '__main__':
@@ -86,7 +83,7 @@ if __name__ == '__main__':
     pd_data = [None] * len(topics)
     # argparse
     parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
-    parser.add_argument('--bag_file', '-b', required=True, type=str, help='rosbag file', metavar='file')
+    parser.add_argument('--bag_file', required=True, type=str, help='rosbag file', metavar='file')
     parser.add_argument('--cutoff_time', '-c', default=0.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
     parser.add_argument('--demo', '-d', action='store_true', default=False,
                         help='--demo for test predict model')
@@ -95,6 +92,8 @@ if __name__ == '__main__':
                         help='--onlySim for disable using RNN predict')
     parser.add_argument('--epoch', '-e', type=int, default=100,
                         help='Number of epochs for training')
+    parser.add_argument('--batch', type=int, default=100,
+                        help='Batch for update training model')
     parser.add_argument('--seed', '-s', type=int, default=0,
                         help='Random seed [0, 2 ** 32), negative value to not set seed, default value is 0')
     parser.add_argument('--log_suffix', '-l', default='', type=str, help='Saving log folder suffix')
@@ -132,9 +131,12 @@ if __name__ == '__main__':
 
     ''' ======================================== '''
     def updateModel(_model, train=True):
-        vel_loss = 0.0
-        steer_loss = 0.0
+        all_vel_loss = 0.0
+        all_steer_loss = 0.0
         iter_cnt = 0
+        batch_vel_loss = 0.0
+        batch_steer_loss = 0.0
+        batch_cnt = 0
         _model.physModel.prevSimulate()
         while _model.physModel.isSimulateEpochFinish():
             state = _model.physModel.getVehicleState()
@@ -143,17 +145,30 @@ if __name__ == '__main__':
                 _ , _ = _model(state, actValue)
             else:
                 iter_vel_loss, iter_steer_loss = _model(state, actValue)
-                vel_loss += iter_vel_loss
-                steer_loss += iter_steer_loss
+                all_vel_loss += iter_vel_loss
+                all_steer_loss += iter_steer_loss
+                batch_vel_loss += iter_vel_loss
+                batch_steer_loss += iter_steer_loss
                 iter_cnt += 1
-        if train:
+                batch_cnt += 1
+            if train and batch_cnt == args.batch:
+                optimizer.target.zerograds()
+                loss = batch_vel_loss + batch_steer_loss
+                loss.backward()
+                loss.unchain_backward()
+                optimizer.update()
+                # reset batch loss
+                batch_vel_loss = 0.0
+                batch_steer_loss = 0.0
+                batch_cnt = 0
+        # Update model using remain part data
+        if train and batch_cnt > 0:
             optimizer.target.zerograds()
-            vel_loss.backward()
-            steer_loss.backward()
-            vel_loss.unchain_backward()
-            steer_loss.unchain_backward()
+            loss = batch_vel_loss + batch_steer_loss
+            loss.backward()
+            loss.unchain_backward()
             optimizer.update()
-        return vel_loss/iter_cnt, steer_loss/iter_cnt
+        return all_vel_loss/iter_cnt, all_steer_loss/iter_cnt
     ''' ======================================== '''
     if not args.demo:
         log_folder = time.strftime("%Y%m%d%H%M%S") + '_' + args.log_suffix
