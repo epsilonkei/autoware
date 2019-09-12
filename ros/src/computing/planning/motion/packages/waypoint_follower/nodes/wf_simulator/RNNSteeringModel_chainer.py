@@ -89,7 +89,8 @@ if __name__ == '__main__':
     parser.add_argument('--bag_file', '-b', required=True, type=str, help='rosbag file', metavar='file')
     parser.add_argument('--cutoff_time', '-c', default=0.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
     parser.add_argument('--demo', '-d', action='store_true', default=False,
-                        help='--demo for load save_weights and test predict model')
+                        help='--demo for test predict model')
+    parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
     parser.add_argument('--onlySim', '-o', action='store_true', default=False,
                         help='--onlySim for disable using RNN predict')
     parser.add_argument('--epoch', '-e', type=int, default=100,
@@ -100,13 +101,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.seed >= 0:
         set_random_seed(args.seed)
-
-    log_folder = time.strftime("%Y%m%d%H%M%S") + '_' + args.log_suffix
-    f_result = log_folder
-    f_model = log_folder + '/saved_model'
-    for ele in [f_result, f_model]:
-        if not os.path.exists(ele):
-            os.makedirs(ele)
 
     for i, topic in enumerate(topics):
         csv_log = rosbag_to_csv(rel2abs(args.bag_file), topic)
@@ -133,6 +127,8 @@ if __name__ == '__main__':
     model = RNNSteeringModel(predictor, wfSim, onlySim = args.onlySim)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
+    if args.load:
+        serializers.load_npz(args.load, model)
 
     ''' ======================================== '''
     def updateModel(_model, train=True):
@@ -160,6 +156,13 @@ if __name__ == '__main__':
         return vel_loss/iter_cnt, steer_loss/iter_cnt
     ''' ======================================== '''
     if not args.demo:
+        log_folder = time.strftime("%Y%m%d%H%M%S") + '_' + args.log_suffix
+        f_result = log_folder
+        f_model = log_folder + '/saved_model'
+        for ele in [f_result, f_model]:
+            if not os.path.exists(ele):
+                os.makedirs(ele)
+
         with open(os.path.join(f_result, 'train_log.txt'), mode='w') as log:
             for epoch in range(args.epoch):
                 model.predictor.reset_state()
@@ -168,7 +171,6 @@ if __name__ == '__main__':
                 log.write('%4d %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data))
         serializers.save_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
     else:
-        serializers.load_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
         # Test
         model.predictor.reset_state()
         vel_loss, steer_loss = updateModel(model, train=False)
