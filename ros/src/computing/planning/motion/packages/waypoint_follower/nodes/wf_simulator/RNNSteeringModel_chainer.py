@@ -53,7 +53,7 @@ class RNNSteeringModel(Chain):
         self.__onlySim = onlySim
         self._cutoff_time = cutoff_time
 
-    def predictNextState(self, state):
+    def predictNextState(self, RNNinput):
         '''
         return RNN predict + Physics function
         @override of WFSimulator.simulateOneStep()
@@ -68,8 +68,8 @@ class RNNSteeringModel(Chain):
         if self.__onlySim:
             nextState = physPred
         else:
-            _state = state.reshape(1, -1) # TODO
-            RNNpred = self.predictor(_state)
+            _RNNinput = RNNinput.reshape(1, -1) # TODO
+            RNNpred = self.predictor(_RNNinput)
             nextState = RNNpred.reshape(1, -1) + physPred
         # Update simulation time
         self.physModel.updateSimulationTime()
@@ -135,11 +135,11 @@ if __name__ == '__main__':
                         loop_rate = 50.0, wheel_base = 2.7, cutoff_time = args.cutoff_time)
     '''
     RNN parameter: n_input, n_units, n_output
-    n_input = n_output = size of state
-    In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer]
-    -> size of state = 5
+    n_input = size of state + size_of input, n_output = size of state,
+    In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer], input = [v_d, steer_d]
+    -> n_input = 7, n_output = 5
     '''
-    predictor = RNN(5, 10, 5)
+    predictor = RNN(7, 10, 5)
     model = RNNSteeringModel(predictor, wfSim, onlySim = args.onlySim)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
@@ -157,11 +157,13 @@ if __name__ == '__main__':
         _model.physModel.prevSimulate()
         while _model.physModel.isSimulateEpochFinish():
             state = _model.physModel.getVehicleState()
+            inputCmd = model.physModel.getVehicleInputCmd()
+            RNNinput = np.concatenate([state, inputCmd])
             actValue = _model.physModel.calcLinearInterpolateActValue()
             if model.physModel.isInCutoffTime():
-                _ , _ = _model(state, actValue)
+                _ , _ = _model(RNNinput, actValue)
             else:
-                iter_vel_loss, iter_steer_loss = _model(state, actValue)
+                iter_vel_loss, iter_steer_loss = _model(RNNinput, actValue)
                 all_vel_loss += iter_vel_loss
                 all_steer_loss += iter_steer_loss
                 batch_vel_loss += iter_vel_loss
