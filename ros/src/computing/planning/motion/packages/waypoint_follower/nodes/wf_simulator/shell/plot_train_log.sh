@@ -8,7 +8,7 @@ echo "YRANGE=$YRANGE";
 
 gnuplot <<EOF
 # set terminal postscript eps color enhanced
-set terminal png
+set terminal png size 1280, 900
 set tics font "Times New Roman,16"
 set xlabel font "Times New Roman,16"
 set ylabel font "Times New Roman,16"
@@ -27,5 +27,6 @@ set title "_"
 set logscale y
 onlySim_vel_loss(x) = 1.286722e-02
 onlySim_steer_loss(x) = 3.167539e-05
-plot "train_log.txt" using 1:2 with line linewidth 2 title "VelLoss", "train_log.txt" using 1:3 with line linewidth 2 title "SteerLoss", onlySim_vel_loss(x) with lines linewidth 2 title "OnlySimulateVelLoss", onlySim_steer_loss(x) with lines linewidth 2 title "OnlySimulateSteerLoss"
+onlySim_dsteer_loss(x) = 1.846280e-03
+plot "train_log.txt" using 1:2 with line linewidth 2 title "VelLoss", "train_log.txt" using 1:3 with line linewidth 2 title "SteerLoss", onlySim_vel_loss(x) with lines linewidth 2 title "OnlySimulateVelLoss", onlySim_steer_loss(x) with lines linewidth 2 title "OnlySimulateSteerLoss", "train_log.txt" using 1:4 with line linewidth 2 title "dSteerLoss", onlySim_dsteer_loss(x) with lines linewidth 2 title "OnlySimulateDsteerLoss"
 EOF
