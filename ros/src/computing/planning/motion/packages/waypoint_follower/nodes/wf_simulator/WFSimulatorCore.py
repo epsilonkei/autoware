@@ -128,6 +128,9 @@ class WFSimulator(object):
     def getVehicleInputCmd(self):
         return self.__vehicle_model.getInput()
 
+    def getDeltaT(self):
+        return self.__dt
+
     def savePrevState(self):
         self.__prev_state = self.__vehicle_model.getState()
 
