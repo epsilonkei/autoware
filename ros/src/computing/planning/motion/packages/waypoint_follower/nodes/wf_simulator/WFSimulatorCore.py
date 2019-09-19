@@ -198,3 +198,43 @@ class WFSimulator(object):
             fig.savefig('simulate_result.png')
         else:
             raise NotImplementedError
+
+    def plotSimulateResultIncludeDsteer(self):
+        if self.__vehicle_model_type == self.__VehicleModelType[self.__DELAY_STEER]:
+            fig = plt.figure(figsize=(16, 16))
+            ax1 = fig.add_subplot(311)
+            ax1.plot(self.tm_cmd, self.input_cmd[0], label='vehicle_cmd/velocity')
+            ax1.plot(self.tm_act, self.state_act[0], label='vehicle_status/velocity')
+            ax1.plot(self.tm_act, self.sim_state_act[:,3], # __VX
+                     label='sim_vehicle_status/velocity')
+            ax1.set_ylabel("Velocity [m/s]")
+            ax1.set_xlabel("Time [s]")
+            ax1.legend(loc='best')
+            ax2 = fig.add_subplot(312, sharex=ax1)
+            ax2.plot(self.tm_cmd, self.input_cmd[1], label='vehicle_cmd/steer')
+            ax2.plot(self.tm_act, self.state_act[1], label='vehicle_status/steer')
+            ax2.plot(self.tm_act, self.sim_state_act[:,4], # __STEER
+                     label='sim_vehicle_status/steer')
+            ax2.set_ylabel("Steering Angle [rad]")
+            ax2.set_xlabel("Time [s]")
+            ax2.legend(loc='best')
+            def differential(state, tm):
+                return (state[2:] - state[:-2]) / (tm[2:] - tm[:-2])
+            # leap-frog scheme: df(N) = (f(N+1) - f(N-1)) / (t(N+1) - t(N-1))
+            '''
+            Notes: rosbag time stamp may be have duplicated time,
+            so leap-frog scheme is better than explicit scheme and implicit scheme
+            '''
+            ax3 = fig.add_subplot(313, sharex=ax1)
+            ax3.plot(self.tm_act[1:-1], differential(self.state_act[1], self.tm_act),
+                     label='vehicle_status/dsteer')
+            ax3.plot(self.tm_act[1:-1], differential(self.sim_state_act[:,4], self.tm_act),
+                     label='sim_vehicle_status/dsteer') # d(__STEER)
+            ax3.set_ylabel("Steering Angle Velocity [rad/sec]")
+            ax3.set_xlabel("Time [s]")
+            ax3.legend(loc='best')
+            fig.tight_layout()
+            plt.show()
+            fig.savefig('simulate_result.png')
+        else:
+            raise NotImplementedError

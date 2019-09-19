@@ -237,4 +237,4 @@ if __name__ == '__main__':
         vel_loss, steer_loss = updateModel(model, train=False)
         print ('Test velocity loss: %2.6e, Test steer loss: %2.6e'%(vel_loss.data, steer_loss.data))
         model.physModel.wrapSimStateAct()
-        model.physModel.plotSimulateResult()
+        model.physModel.plotSimulateResultIncludeDsteer()
