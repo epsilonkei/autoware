@@ -102,6 +102,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
     parser.add_argument('--bag_file', required=True, type=str, help='rosbag file', metavar='file')
     parser.add_argument('--cutoff_time', '-c', default=0.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
+    parser.add_argument('--RNNarch', type=str, default='InputOnlyVelSteer',
+                        choices=('InputOnlyState', 'IncludeXYyaw', 'InputOnlyVelSteer'))
     parser.add_argument('--demo', '-d', action='store_true', default=False,
                         help='--demo for test predict model')
     parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
@@ -133,13 +135,30 @@ if __name__ == '__main__':
     # Create WF simulator instance + intialize (if necessary)
     wfSim = WFSimulator(tm_cmd, input_cmd, tm_act, state_act,
                         loop_rate = 50.0, wheel_base = 2.7, cutoff_time = args.cutoff_time)
-    '''
-    RNN parameter: n_input, n_units, n_output
-    n_input = 2 (vx, steer) + size_of input, n_output = size of state,
-    In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer], input = [v_d, steer_d]
-    -> n_input = 4, n_output = 5
-    '''
-    predictor = RNN(4, 10, 5)
+    if args.RNNarch == 'InputOnlyVelSteer':
+        '''
+        RNN parameter: n_input, n_units, n_output
+        n_input = 2 (vx, steer) + size_of input, n_output = size of state,
+        In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer], input = [v_d, steer_d]
+        -> n_input = 4, n_output = 5
+        '''
+        predictor = RNN(4, 10, 5)
+    elif args.RNNarch == 'IncludeXYyaw':
+        '''
+        RNN parameter: n_input, n_units, n_output
+        n_input = size of state + size_of input, n_output = size of state,
+        In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer], input = [v_d, steer_d]
+        -> n_input = 7, n_output = 5
+        '''
+        predictor = RNN(7, 10, 5)
+    elif args.RNNarch == 'InputOnlyState':
+        '''
+        RNN parameter: n_input, n_units, n_output
+        n_input = n_output = size of state,
+        In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer], input = [v_d, steer_d]
+        -> n_input = 5, n_output = 5
+        '''
+        predictor = RNN(5, 10, 5)
     model = RNNSteeringModel(predictor, wfSim, onlySim = args.onlySim)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
@@ -158,8 +177,15 @@ if __name__ == '__main__':
         while _model.physModel.isSimulateEpochFinish():
             state = _model.physModel.getVehicleState()
             inputCmd = model.physModel.getVehicleInputCmd()
-            # RNN input = [v, steer, v_d, steer_d]
-            RNNinput = np.concatenate([state[3:5], inputCmd])
+            if args.RNNarch == 'InputOnlyVelSteer':
+                # RNN input = [v, steer, v_d, steer_d]
+                RNNinput = np.concatenate([state[3:5], inputCmd])
+            elif args.RNNarch == 'IncludeXYyaw':
+                # RNN input = [x, y, yaw, v, steer, v_d, steer_d]
+                RNNinput = np.concatenate([state, inputCmd])
+            elif args.RNNarch == 'InputOnlyState':
+                # RNN input = [x, y, yaw, v, steer]
+                RNNinput = state
             actValue = _model.physModel.calcLinearInterpolateActValue()
             if model.physModel.isInCutoffTime():
                 _ , _ = _model(RNNinput, actValue)
