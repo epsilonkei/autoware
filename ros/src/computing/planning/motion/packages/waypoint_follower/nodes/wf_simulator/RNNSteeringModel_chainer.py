@@ -84,21 +84,21 @@ class RNNSteeringModel(Chain):
             self.physModel.updateVehicleModelState(nextState.data.flatten())
         return nextState
 
-    def __call__(self, state, _actValue):
+    def __call__(self, state, _nextActValue):
         # state = self.physModel.getVehicleState()
         _nextState = self.predictNextState(state)
         nextState = _nextState.reshape(-1,1)
         # _actValue = self.physModel.calcLinearInterpolateActValue()
-        actValue = _actValue.reshape(-1,1)
+        nextActValue = _nextActValue.reshape(-1,1)
         ''' nextState[3] for VELOCITY, nextState[4] for STEERING_ANGLE '''
-        vel_loss = F.mean_squared_error(nextState[3], actValue[0])
-        steer_loss = F.mean_squared_error(nextState[4], actValue[1])
+        vel_loss = F.mean_squared_error(nextState[3], nextActValue[0])
+        steer_loss = F.mean_squared_error(nextState[4], nextActValue[1])
         if self.__prev_steer is not None and self.__prev_act_steer is not None:
-            dsteer_loss = F.mean_squared_error((nextState[4] - self.__prev_steer) / self.physModel.getDeltaT(), (actValue[1] - self.__prev_act_steer) / self.physModel.getDeltaT())
+            dsteer_loss = F.mean_squared_error((nextState[4] - self.__prev_steer) / self.physModel.getDeltaT(), (nextActValue[1] - self.__prev_act_steer) / self.physModel.getDeltaT())
         else:
             dsteer_loss = chainer.Variable(np.array([0.0]))
         self.__prev_steer = nextState[4]
-        self.__prev_act_steer = actValue[1]
+        self.__prev_act_steer = nextActValue[1]
         return vel_loss, steer_loss, dsteer_loss
 
 if __name__ == '__main__':
@@ -202,11 +202,11 @@ if __name__ == '__main__':
             elif args.RNNarch == 'InputOnlyState':
                 # RNN input = [x, y, yaw, v, steer]
                 RNNinput = state
-            actValue = _model.physModel.calcLinearInterpolateActValue()
+            nextActValue = _model.physModel.calcLinearInterpolateNextActValue()
             if model.physModel.isInCutoffTime():
-                _ , _, _ = _model(RNNinput, actValue)
+                _ , _, _ = _model(RNNinput, nextActValue)
             else:
-                iter_vel_loss, iter_steer_loss, iter_dsteer_loss = _model(RNNinput, actValue)
+                iter_vel_loss, iter_steer_loss, iter_dsteer_loss = _model(RNNinput, nextActValue)
                 all_vel_loss += iter_vel_loss
                 all_steer_loss += iter_steer_loss
                 all_dsteer_loss += iter_dsteer_loss
