@@ -184,6 +184,12 @@ if __name__ == '__main__':
         batch_dsteer_loss = 0.0
         batch_cnt = 0
         _model.physModel.prevSimulate()
+        def __runOptimizer():
+            optimizer.target.zerograds()
+            loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss
+            loss.backward()
+            loss.unchain_backward()
+            optimizer.update()
         while _model.physModel.isSimulateEpochFinish():
             state = _model.physModel.getVehicleState()
             inputCmd = model.physModel.getVehicleInputCmd()
@@ -210,22 +216,14 @@ if __name__ == '__main__':
                 iter_cnt += 1
                 batch_cnt += 1
             if train and batch_cnt == args.batch:
-                optimizer.target.zerograds()
-                loss = batch_vel_loss + batch_steer_loss
-                loss.backward()
-                loss.unchain_backward()
-                optimizer.update()
+                __runOptimizer()
                 # reset batch loss
                 batch_vel_loss = 0.0
                 batch_steer_loss = 0.0
                 batch_cnt = 0
         # Update model using remain part data
         if train and batch_cnt > 0:
-            optimizer.target.zerograds()
-            loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss
-            loss.backward()
-            loss.unchain_backward()
-            optimizer.update()
+            __runOptimizer()
         return all_vel_loss/iter_cnt, all_steer_loss/iter_cnt, all_dsteer_loss/iter_cnt
     ''' ======================================== '''
     if not args.demo:
