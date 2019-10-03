@@ -53,7 +53,8 @@ class WFSimulator(object):
             raise NotImplementedError
         # For update simulation result list
         self.__prev_tm = 0.0
-        self.__prev_state = self.__vehicle_model.getState()
+        # self.__prev_state = self.__vehicle_model.getState() # this will involve bug because of deep copy
+        self.__prev_state = self.__vehicle_model.getState().copy()
         # For simulate
         self.__tm = 0.0
         self.__tm_end = 0.0
@@ -117,7 +118,7 @@ class WFSimulator(object):
         # ##
         self.__tm_end = max(self.tm_cmd[-1], self.tm_act[-1])
         self.__prev_tm = self.__tm
-        self.__prev_state = self.__vehicle_model.getState()
+        self.__prev_state = self.__vehicle_model.getState().copy()
         self.__ind_cmd = 0
         self.__ind_act = 0
         self.updateSimulationActValue(self.__vehicle_model.getState())
@@ -132,7 +133,7 @@ class WFSimulator(object):
         return self.__dt
 
     def savePrevState(self):
-        self.__prev_state = self.__vehicle_model.getState()
+        self.__prev_state = self.__vehicle_model.getState().copy()
 
     def updateVehicleCmd(self):
         if self.__ind_cmd < len(self.tm_cmd) and self.__tm >= self.tm_cmd[self.__ind_cmd]:
@@ -146,6 +147,7 @@ class WFSimulator(object):
         self.__vehicle_model.updateRungeKutta(self.__dt)
 
     def updateSimulationTime(self):
+        self.__prev_tm = self.__tm
         self.__tm += self.__dt
 
     def simulateOneStep(self):
