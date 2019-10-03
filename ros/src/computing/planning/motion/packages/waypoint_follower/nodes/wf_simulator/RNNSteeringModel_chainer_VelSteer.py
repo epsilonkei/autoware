@@ -67,6 +67,9 @@ class RNNSteeringModel(Chain):
         self.__vehicle_model = VehicleModelIdealSteerCustomize(self.__wheel_base)
         # Simulation result list
         self.sim_state_act = []
+        # For update simulation result list
+        self.__prev_tm = 0.0
+        self.__prev_output = self.__output.copy()
         # For simulate
         self.__tm = 0.0
         self.__tm_end = 0.0
@@ -108,7 +111,14 @@ class RNNSteeringModel(Chain):
         self.__vehicle_model.setState(state)
 
     def updateSimulationActValue(self):
-        self.sim_state_act.append(self.__output) # sim_state_act = [v, dv, steer, dsteer]
+        nextActTm = self.tm_act[self.__ind_act]
+        if self.__tm >= nextActTm:
+            # sim_state_act = out_put = [v, dv, steer, dsteer]
+            act_state = getLinearInterpolate(self.__prev_tm, self.__tm,
+                                             self.__prev_output, self.__output,
+                                             nextActTm)
+            self.sim_state_act.append(act_state)
+            self.__ind_act += 1
 
     def prevSimulate(self):
         self.setInitialState()
@@ -121,9 +131,14 @@ class RNNSteeringModel(Chain):
         self.__tm = 0.0
         # ##
         self.__tm_end = max(self.tm_cmd[-1], self.tm_act[-1])
+        self.__prev_tm = self.__tm
+        self.__prev_output = self.__output.copy()
         self.__ind_cmd = 0
         self.__ind_act = 0
         self.updateSimulationActValue()
+
+    def savePrevOutput(self):
+        self.__prev_output = self.__output.copy()
 
     def updateCmdValue(self):
         if self.__ind_cmd < len(self.tm_cmd) and self.__tm >= self.tm_cmd[self.__ind_cmd]:
@@ -131,6 +146,7 @@ class RNNSteeringModel(Chain):
             self.__ind_cmd += 1
 
     def updateSimulationTime(self):
+        self.__prev_tm = self.__tm
         self.__tm += self.__dt
 
     def isSimulateEpochFinish(self):
@@ -194,6 +210,8 @@ class RNNSteeringModel(Chain):
     def simulateOneStep(self, input_x): # return output
         # Update Cmd Value
         self.updateCmdValue()
+        # Save prev_output for updateSimulationActValue()
+        self.savePrevOutput()
         # Calc physic function
         fphys = self.fphys(input_x)
         # Calc rnn output
@@ -202,6 +220,8 @@ class RNNSteeringModel(Chain):
         output = frnn.reshape(1, -1) + fphys
         # Update simulation time
         self.updateSimulationTime()
+        # Update Simulation Act
+        self.updateSimulationActValue()
         ##
         # # Update for x,y,yaw (if in SIMULATOR mode)
         # self.__vehicle_model.setVelocity(nextState[0]) # vel
