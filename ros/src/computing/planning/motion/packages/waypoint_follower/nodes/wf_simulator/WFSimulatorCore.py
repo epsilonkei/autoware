@@ -70,7 +70,15 @@ class WFSimulator(object):
         return act_state
 
     def calcLinearInterpolateNextActValue(self):
-        if self.__tm + self.__dt < self.tm_act[self.__ind_act] or self.__ind_act < len(self.tm_act):
+        if self.__ind_act >= len(self.tm_act):
+            act_state = getLinearInterpolate(self.tm_act[-2],
+                                             self.tm_act[-1],
+                                             self.state_act[:,-2],
+                                             self.state_act[:,-1],
+                                             self.__tm + self.__dt)
+
+        elif self.__tm + self.__dt < self.tm_act[self.__ind_act] or \
+             self.__ind_act + 1 >= len(self.tm_act):
             act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
                                              self.tm_act[self.__ind_act],
                                              self.state_act[:,self.__ind_act - 1],
@@ -98,13 +106,14 @@ class WFSimulator(object):
             raise NotImplementedError
 
     def updateSimulationActValue(self, state):
-        nextActTm = self.tm_act[self.__ind_act]
-        if self.__tm >= nextActTm:
-            act_state = getLinearInterpolate(self.__prev_tm, self.__tm,
-                                             self.__prev_state, state,
-                                             nextActTm)
-            self.sim_state_act.append(act_state)
-            self.__ind_act += 1
+        if self.__ind_act < len(self.tm_act):
+            nextActTm = self.tm_act[self.__ind_act]
+            if self.__tm >= nextActTm:
+                act_state = getLinearInterpolate(self.__prev_tm, self.__tm,
+                                                 self.__prev_state, state,
+                                                 nextActTm)
+                self.sim_state_act.append(act_state)
+                self.__ind_act += 1
 
     def prevSimulate(self):
         self.setInitialState()
