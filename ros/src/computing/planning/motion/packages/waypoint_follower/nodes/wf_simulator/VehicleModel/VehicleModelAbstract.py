@@ -17,14 +17,14 @@ class VehicleModelAbstract(object):
     def calcModel(self, _state, _input):
         raise NotImplementedError
 
-    def updateEuler(self, dt):
-        self.state_ += self.calcModel(self.state_, self.input_) * dt
+    def updateEuler(self, dt, _input):
+        self.state_ += self.calcModel(self.state_, _input) * dt
 
-    def updateRungeKutta(self, dt):
-        k1 = self.calcModel(self.state_, self.input_)
-        k2 = self.calcModel(self.state_ + k1 * 0.5 * dt, self.input_)
-        k3 = self.calcModel(self.state_ + k2 * 0.5 * dt, self.input_)
-        k4 = self.calcModel(self.state_ + k3 * dt, self.input_)
+    def updateRungeKutta(self, dt, _input):
+        k1 = self.calcModel(self.state_, _input)
+        k2 = self.calcModel(self.state_ + k1 * 0.5 * dt, _input)
+        k3 = self.calcModel(self.state_ + k2 * 0.5 * dt, _input)
+        k4 = self.calcModel(self.state_ + k3 * dt, _input)
         self.state_ += 1.0/6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4) * dt
 
     def setState(self, _state):

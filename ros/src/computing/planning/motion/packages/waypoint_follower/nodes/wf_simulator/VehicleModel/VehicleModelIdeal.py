@@ -26,6 +26,9 @@ class VehicleModelIdealSteer(VehicleModelAbstract):
         d_state[self.__IDX[self.__YAW]] = vel * np.tan(steer) / self.__wheelbase
         return d_state
 
+    def update(self, dt):
+        self.updateRungeKutta(dt, self.input_)
+
 class VehicleModelIdealSteerCustomize(VehicleModelAbstract):
     __IDX = (__X,
              __Y,
@@ -59,3 +62,6 @@ class VehicleModelIdealSteerCustomize(VehicleModelAbstract):
 
     def getSteer(self, steer):
         return self.__steer
+
+    def update(self, dt):
+        self.updateRungeKutta(dt, self.input_)

@@ -38,14 +38,11 @@ class VehicleModelTimeDelaySteer(VehicleModelAbstract):
             self.__steer_input_queue.append(0.0)
 
     def calcModel(self, _state, _input):
-        self.__vel_input_queue.append(_input[self.__IDX_U[self.__VX_DES]])
-        delay_input_vel = self.__vel_input_queue.popleft()
-        self.__steer_input_queue.append(_input[self.__IDX_U[self.__STEER_DES]])
-        delay_input_steer = self.__steer_input_queue.popleft()
-        ##
         vel = _state[self.__IDX[self.__VX]]
         yaw = _state[self.__IDX[self.__YAW]]
         steer = _state[self.__IDX[self.__STEER]]
+        delay_input_vel = _input[self.__IDX_U[self.__VX_DES]]
+        delay_input_steer = _input[self.__IDX_U[self.__STEER_DES]]
         delay_vx_des = max(min(delay_input_vel, self.__vel_lim), -self.__vel_lim)
         delay_steer_des = max(min(delay_input_steer, self.__steer_lim), -self.__steer_lim)
         vx_rate = - (vel - delay_vx_des) / self.__vel_time_const
@@ -57,3 +54,13 @@ class VehicleModelTimeDelaySteer(VehicleModelAbstract):
         d_state[self.__IDX[self.__VX]] = vx_rate
         d_state[self.__IDX[self.__STEER]] = steer_rate
         return d_state
+
+    def update(self, dt):
+        delay_input = np.zeros(self.dimu_)
+        self.__vel_input_queue.append(self.input_[self.__IDX_U[self.__VX_DES]])
+        delay_input_vel = self.__vel_input_queue.popleft()
+        self.__steer_input_queue.append(self.input_[self.__IDX_U[self.__STEER_DES]])
+        delay_input_steer = self.__steer_input_queue.popleft()
+        delay_input[self.__IDX_U[self.__VX_DES]] = delay_input_vel
+        delay_input[self.__IDX_U[self.__STEER_DES]] = delay_input_steer
+        self.updateRungeKutta(dt, delay_input)

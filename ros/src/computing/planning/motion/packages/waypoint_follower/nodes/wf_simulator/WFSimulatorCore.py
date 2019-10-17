@@ -153,7 +153,7 @@ class WFSimulator(object):
         self.__vehicle_model.setState(_state)
 
     def calcVehicleState(self):
-        self.__vehicle_model.updateRungeKutta(self.__dt)
+        self.__vehicle_model.update(self.__dt)
 
     def updateSimulationTime(self):
         self.__prev_tm = self.__tm
