@@ -27,6 +27,6 @@ class RNN(Chain):
         self.l2.reset_state()
 
     def __call__(self, x):
-        h1 = F.tanh(self.l1(x))
-        h2 = F.tanh(self.l2(h1))
+        h1 = self.l1(x)
+        h2 = self.l2(h1)
         return self.l3(h2)
