@@ -12,7 +12,7 @@ import chainer.functions as F
 from chainer import Chain, optimizers, serializers
 from fitParamDelayInputModel import rosbag_to_csv, rel2abs
 from VehicleModel.VehicleModelIdeal import VehicleModelIdealSteerCustomize
-from WFSimulatorCore import getLinearInterpolate
+from WFSimulatorCore import getLinearInterpolate, getYawFromQuaternion
 from RNN import RNN, set_random_seed
 import time
 import sys
@@ -79,12 +79,8 @@ class RNNSteeringModel(Chain):
                                              self.__tm + self.__dt)
         return act_state
 
-    def setInitialState(self): # TODO: using geometry_msg Pose and Twist
-        x = 0.0
-        y = 0.0
-        yaw = 0.0
-        state = np.array((x, y, yaw))
-        self.__vehicle_model.setState(state)
+    def setInitialState(self, _state):
+        self.__vehicle_model.setState(np.array(_state))
 
     def updateSimulationActValue(self):
         nextActTm = self.tm_act[self.__ind_act]
@@ -96,8 +92,8 @@ class RNNSteeringModel(Chain):
             self.sim_state_act.append(act_state)
             self.__ind_act += 1
 
-    def prevSimulate(self):
-        self.setInitialState()
+    def prevSimulate(self, init_state):
+        self.setInitialState(init_state)
         # Clear simulation result list
         self.sim_state_act = []
         self.__tm = min(self.tm_cmd[0], self.tm_act[0])
@@ -232,7 +228,8 @@ class RNNSteeringModel(Chain):
 if __name__ == '__main__':
     # Read data from csv
     topics = [ 'vehicle_cmd/ctrl_cmd/steering_angle', 'vehicle_status/angle', \
-               'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed']
+               'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed', \
+               'current_pose/pose']
     pd_data = [None] * len(topics)
     # argparse
     parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
@@ -264,6 +261,17 @@ if __name__ == '__main__':
     steer_act = np.array(list(pd_data[1]['field']))
     vel_act = np.array(list(pd_data[3]['field'])) / 3.6 # km/h -> m/s
     state_act = np.vstack((vel_act, steer_act))
+    ##
+    px0 = pd_data[4]['field.position.x'][0]
+    py0 = pd_data[4]['field.position.y'][0]
+    pz0 = pd_data[4]['field.position.z'][0]
+    ox0 = pd_data[4]['field.orientation.x'][0]
+    oy0 = pd_data[4]['field.orientation.y'][0]
+    oz0 = pd_data[4]['field.orientation.z'][0]
+    ow0 = pd_data[4]['field.orientation.w'][0]
+    yaw0 = getYawFromQuaternion((ox0, oy0, oz0, ow0))
+    v0 = vel_act[0]
+    steer0 = steer_act[0]
     # Create WF simulator instance + intialize (if necessary)
     '''
     RNN parameter: n_input, n_units, n_output
@@ -289,7 +297,7 @@ if __name__ == '__main__':
         batch_steer_loss = 0.0
         batch_dsteer_loss = 0.0
         batch_cnt = 0
-        _model.prevSimulate()
+        _model.prevSimulate((px0, py0, yaw0, v0, steer0))
         def __runOptimizer():
             optimizer.target.zerograds()
             loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss

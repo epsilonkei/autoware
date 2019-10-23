@@ -9,7 +9,7 @@ import numpy as np
 import chainer
 import chainer.functions as F
 from chainer import Chain, optimizers, serializers
-from WFSimulatorCore import WFSimulator
+from WFSimulatorCore import WFSimulator, getYawFromQuaternion
 from fitParamDelayInputModel import rosbag_to_csv, rel2abs
 from RNN import RNN, set_random_seed
 import time
@@ -80,7 +80,8 @@ class RNNSteeringModel(Chain):
 if __name__ == '__main__':
     # Read data from csv
     topics = [ 'vehicle_cmd/ctrl_cmd/steering_angle', 'vehicle_status/angle', \
-               'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed']
+               'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed', \
+               'current_pose/pose']
     pd_data = [None] * len(topics)
     # argparse
     parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
@@ -116,6 +117,17 @@ if __name__ == '__main__':
     steer_act = np.array(list(pd_data[1]['field']))
     vel_act = np.array(list(pd_data[3]['field'])) / 3.6 # km/h -> m/s
     state_act = np.vstack((vel_act, steer_act))
+    ##
+    px0 = pd_data[4]['field.position.x'][0]
+    py0 = pd_data[4]['field.position.y'][0]
+    pz0 = pd_data[4]['field.position.z'][0]
+    ox0 = pd_data[4]['field.orientation.x'][0]
+    oy0 = pd_data[4]['field.orientation.y'][0]
+    oz0 = pd_data[4]['field.orientation.z'][0]
+    ow0 = pd_data[4]['field.orientation.w'][0]
+    yaw0 = getYawFromQuaternion((ox0, oy0, oz0, ow0))
+    v0 = vel_act[0]
+    steer0 = steer_act[0]
     # Create WF simulator instance + intialize (if necessary)
     wfSim = WFSimulator(tm_cmd, input_cmd, tm_act, state_act,
                         loop_rate = 50.0, wheel_base = 2.7, cutoff_time = args.cutoff_time)
@@ -159,7 +171,7 @@ if __name__ == '__main__':
         batch_steer_loss = 0.0
         batch_dsteer_loss = 0.0
         batch_cnt = 0
-        _model.physModel.prevSimulate()
+        _model.physModel.prevSimulate((px0, py0, yaw0, v0, steer0))
         def __runOptimizer():
             optimizer.target.zerograds()
             loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss

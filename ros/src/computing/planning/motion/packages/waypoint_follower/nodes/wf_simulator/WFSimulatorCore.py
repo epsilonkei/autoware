@@ -5,6 +5,7 @@ from VehicleModel.VehicleModelTimeDelay import VehicleModelTimeDelaySteer
 import numpy as np
 import matplotlib.pyplot as plt
 import bisect
+import tf
 
 def getLinearInterpolate(tm0, tm1, val0, val1, tm, __EPS=1e-9):
     if (tm1 - tm0) < __EPS:
@@ -12,6 +13,9 @@ def getLinearInterpolate(tm0, tm1, val0, val1, tm, __EPS=1e-9):
     else:
         val = val0 + (val1 - val0) / (tm1 - tm0) * (tm - tm0)
         return val
+
+def getYawFromQuaternion(quaternion):
+    return tf.transformations.euler_from_quaternion(quaternion)[2]
 
 class WFSimulator(object):
     __VehicleModelType = (__IDEAL_TWIST,
@@ -92,18 +96,8 @@ class WFSimulator(object):
                                              self.__tm + self.__dt)
         return act_state
 
-    def setInitialState(self): # TODO: using geometry_msg Pose and Twist
-        x = 0.0
-        y = 0.0
-        yaw = 0.0
-        vx = 0.0
-        wz = 0.0
-        steer = 0.0
-        if self.__vehicle_model_type == self.__VehicleModelType[self.__DELAY_STEER]:
-            state = np.array((x, y, yaw, vx, steer))
-            self.__vehicle_model.setState(state)
-        else:
-            raise NotImplementedError
+    def setInitialState(self, _state):
+        self.__vehicle_model.setState(np.array(_state))
 
     def updateSimulationActValue(self, state):
         if self.__ind_act < len(self.tm_act):
@@ -115,8 +109,8 @@ class WFSimulator(object):
                 self.sim_state_act.append(act_state)
                 self.__ind_act += 1
 
-    def prevSimulate(self):
-        self.setInitialState()
+    def prevSimulate(self, init_state):
+        self.setInitialState(init_state)
         # Clear simulation result list
         self.sim_state_act = []
         self.__tm = min(self.tm_cmd[0], self.tm_act[0])
@@ -176,7 +170,6 @@ class WFSimulator(object):
         self.sim_state_act = np.array(self.sim_state_act)
 
     def simulate(self):
-        self.prevSimulate()
         while self.isSimulateEpochFinish():
             self.simulateOneStep()
         self.wrapSimStateAct()
