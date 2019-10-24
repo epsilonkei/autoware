@@ -10,10 +10,13 @@ import chainer
 import chainer.functions as F
 from chainer import Chain, optimizers, serializers
 from WFSimulatorCore import WFSimulator, getYawFromQuaternion
-from fitParamDelayInputModel import rosbag_to_csv, rel2abs
+from rosbag2csv import basename_to_csv, rel2abs
 from RNN import RNN, set_random_seed
 import time
 import sys
+import yaml
+import random
+
 try:
     import pandas as pd
 except ImportError:
@@ -76,36 +79,13 @@ class RNNSteeringModel(Chain):
         self.__prev_act_steer = nextActValue[1]
         return vel_loss, steer_loss, dsteer_loss
 
-if __name__ == '__main__':
-    # Read data from csv
-    topics = [ 'vehicle_cmd/ctrl_cmd/steering_angle', 'vehicle_status/angle', \
-               'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed', \
-               'current_pose/pose']
-    pd_data = [None] * len(topics)
-    # argparse
-    parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
-    parser.add_argument('--bag_file', required=True, type=str, help='rosbag file', metavar='file')
-    parser.add_argument('--cutoff_time', '-c', default=0.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
-    parser.add_argument('--RNNarch', type=str, default='InputOnlyVelSteer',
-                        choices=('InputOnlyState', 'IncludeXYyaw', 'InputOnlyVelSteer'))
-    parser.add_argument('--demo', '-d', action='store_true', default=False,
-                        help='--demo for test predict model')
-    parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
-    parser.add_argument('--onlySim', '-o', action='store_true', default=False,
-                        help='--onlySim for disable using RNN predict')
-    parser.add_argument('--epoch', '-e', type=int, default=100,
-                        help='Number of epochs for training')
-    parser.add_argument('--batch', type=int, default=100,
-                        help='Batch for update training model')
-    parser.add_argument('--seed', '-s', type=int, default=0,
-                        help='Random seed [0, 2 ** 32), negative value to not set seed, default value is 0')
-    parser.add_argument('--log_suffix', '-l', default='', type=str, help='Saving log folder suffix')
-    args = parser.parse_args()
-    if args.seed >= 0:
-        set_random_seed(args.seed)
-
+def getDataFromLog(basename):
+    if basename[0] == '~':
+        basename = os.path.expanduser(basename)
+    else:
+        basename = rel2abs(basename)
     for i, topic in enumerate(topics):
-        csv_log = rosbag_to_csv(rel2abs(args.bag_file), topic)
+        csv_log = basename_to_csv(basename, topic)
         pd_data[i] = pd.read_csv(csv_log, sep=' ')
     tm_cmd = np.array(list(pd_data[0]['%time'])) * 1e-9
     steer_cmd = np.array(list(pd_data[0]['field']))
@@ -127,9 +107,40 @@ if __name__ == '__main__':
     yaw0 = getYawFromQuaternion((ox0, oy0, oz0, ow0))
     v0 = vel_act[0]
     steer0 = steer_act[0]
+    return tm_cmd, input_cmd, tm_act, state_act, (px0, py0, yaw0, v0, steer0)
+
+if __name__ == '__main__':
+    # argparse
+    parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
+    parser.add_argument('--basename', type=str, help='Log basename')
+    parser.add_argument('--datcfg', type=str, help='Training data config', metavar='file')
+    parser.add_argument('--cutoff_time', '-c', default=0.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
+    parser.add_argument('--RNNarch', type=str, default='InputOnlyVelSteer',
+                        choices=('InputOnlyState', 'IncludeXYyaw', 'InputOnlyVelSteer'))
+    parser.add_argument('--demo', '-d', action='store_true', default=False,
+                        help='--demo for test predict model')
+    parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
+    parser.add_argument('--onlySim', '-o', action='store_true', default=False,
+                        help='--onlySim for disable using RNN predict')
+    parser.add_argument('--epoch', '-e', type=int, default=100,
+                        help='Number of epochs for training')
+    parser.add_argument('--batch', type=int, default=100,
+                        help='Batch for update training model')
+    parser.add_argument('--seed', '-s', type=int, default=0,
+                        help='Random seed [0, 2 ** 32), negative value to not set seed, default value is 0')
+    parser.add_argument('--log_suffix', '-l', default='', type=str, help='Saving log folder suffix')
+    args = parser.parse_args()
+    if args.seed >= 0:
+        set_random_seed(args.seed)
+
+    # Read data from csv and data.cfg
+    topics = [ 'vehicle_cmd/ctrl_cmd/steering_angle', 'vehicle_status/angle', \
+               'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed', \
+               'current_pose/pose']
+    pd_data = [None] * len(topics)
+
     # Create WF simulator instance + intialize (if necessary)
     wfSim = WFSimulator(loop_rate = 50.0, wheel_base = 2.7)
-    wfSim.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
     if args.RNNarch == 'InputOnlyVelSteer':
         '''
         RNN parameter: n_input, n_units, n_output
@@ -161,7 +172,7 @@ if __name__ == '__main__':
         serializers.load_npz(args.load, model)
 
     ''' ======================================== '''
-    def updateModel(_model, train=True):
+    def updateModel(_model, init_state, train=True):
         all_vel_loss = 0.0
         all_steer_loss = 0.0
         all_dsteer_loss = 0.0
@@ -170,7 +181,7 @@ if __name__ == '__main__':
         batch_steer_loss = 0.0
         batch_dsteer_loss = 0.0
         batch_cnt = 0
-        _model.physModel.prevSimulate((px0, py0, yaw0, v0, steer0))
+        _model.physModel.prevSimulate(init_state)
         def __runOptimizer():
             optimizer.target.zerograds()
             loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss
@@ -214,6 +225,16 @@ if __name__ == '__main__':
         return all_vel_loss/iter_cnt, all_steer_loss/iter_cnt, all_dsteer_loss/iter_cnt
     ''' ======================================== '''
     if not args.demo:
+        # Training mode
+        if args.datcfg:
+            with open(args.datcfg, 'r') as f:
+                data_list = yaml.load(f)
+            tm_cmds = input_cmds = tm_acts = state_acts = init_states = [None] * len(data_list)
+            for i, data in enumerate(data_list['logs']):
+                tm_cmds[i], input_cmds[i], tm_acts[i], state_acts[i], init_states[i] = getDataFromLog(data['basename'])
+        else:
+            tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
+            model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
         log_folder = time.strftime("%Y%m%d%H%M%S") + '_' + args.log_suffix
         f_result = log_folder
         f_model = log_folder + '/saved_model'
@@ -224,15 +245,21 @@ if __name__ == '__main__':
         with open(os.path.join(f_result, 'train_log.txt'), mode='w') as log:
             for epoch in range(args.epoch):
                 model.predictor.reset_state()
-                vel_loss, steer_loss, dsteer_loss = updateModel(model, train=True)
+                if args.datcfg:
+                    ind = random.randrange(len(data_list))
+                    model.physModel.parseData(tm_cmds[ind], input_cmds[ind], tm_acts[ind], state_acts[ind], \
+                                              data_list['logs'][ind]['cutoff_time'])
+                    vel_loss, steer_loss, dsteer_loss = updateModel(model, init_states[ind], train=True)
+                else:
+                    vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=True)
                 print ('Epoch: %4d, Velocity loss: %2.6e, Steer loss: %2.6e, dSteer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data, dsteer_loss.data))
                 log.write('%4d %2.6e %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data,
                                                dsteer_loss.data))
         serializers.save_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
     else:
-        # Test
+        # Test mode
         model.predictor.reset_state()
-        vel_loss, steer_loss, dsteer_loss = updateModel(model, train=False)
+        vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=False)
         print ('Test velocity loss: %2.6e, Test steer loss: %2.6e, Test dsteer loss: %2.6e'%(vel_loss.data, steer_loss.data, dsteer_loss.data))
         model.physModel.wrapSimStateAct()
         model.physModel.plotSimulateResultIncludeDsteer()
