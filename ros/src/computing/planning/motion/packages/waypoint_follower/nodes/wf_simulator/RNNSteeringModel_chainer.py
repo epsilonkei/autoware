@@ -129,8 +129,8 @@ if __name__ == '__main__':
     v0 = vel_act[0]
     steer0 = steer_act[0]
     # Create WF simulator instance + intialize (if necessary)
-    wfSim = WFSimulator(tm_cmd, input_cmd, tm_act, state_act,
-                        loop_rate = 50.0, wheel_base = 2.7, cutoff_time = args.cutoff_time)
+    wfSim = WFSimulator(loop_rate = 50.0, wheel_base = 2.7, cutoff_time = args.cutoff_time)
+    wfSim.parseData(tm_cmd, input_cmd, tm_act, state_act)
     if args.RNNarch == 'InputOnlyVelSteer':
         '''
         RNN parameter: n_input, n_units, n_output

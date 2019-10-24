@@ -26,17 +26,15 @@ except ImportError:
 
 class RNNSteeringModel(Chain):
     def __init__(self, predictor,
-                 _tm_cmd, _input_cmd,
-                 _tm_act, _state_act,
                  loop_rate, wheel_base, cutoff_time = 0.0):
         super(RNNSteeringModel, self).__init__(predictor=predictor)
         self.__wheel_base = wheel_base
         self.__dt = 1.0 / loop_rate
         self.__cutoff_time = cutoff_time
-        self.tm_cmd = _tm_cmd
-        self.input_cmd = _input_cmd
-        self.tm_act = _tm_act
-        self.state_act = _state_act
+        self.tm_cmd = None
+        self.input_cmd = None
+        self.tm_act = None
+        self.state_act = None
         self.__input_u = np.zeros(2) # input_u = [v_des, steer_des]
         self.__output = np.zeros(4) # output = [v, dv, steer, dsteer]
         self.__input_x = np.zeros(6) # input_x = concat(output, input_u)
@@ -56,6 +54,12 @@ class RNNSteeringModel(Chain):
         self.__prev_act_steer = None
 
     ## ==== Feature of WFSimulator ==== ##
+    def parseData(self, _tm_cmd, _input_cmd, _tm_act, _state_act):
+        self.tm_cmd = _tm_cmd
+        self.input_cmd = _input_cmd
+        self.tm_act = _tm_act
+        self.state_act = _state_act
+
     def calcLinearInterpolateActValue(self):
         act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
                                          self.tm_act[self.__ind_act],
@@ -280,8 +284,9 @@ if __name__ == '__main__':
     -> n_input = 6, n_output = 4
     '''
     predictor = RNN(6, 10, 4)
-    model = RNNSteeringModel(predictor, tm_cmd, input_cmd, tm_act, state_act,
-                             loop_rate = 50.0, wheel_base = 2.7, cutoff_time = args.cutoff_time)
+    model = RNNSteeringModel(predictor, loop_rate = 50.0, wheel_base = 2.7,
+                             cutoff_time = args.cutoff_time)
+    model.parseData(tm_cmd, input_cmd, tm_act, state_act)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
     if args.load:
