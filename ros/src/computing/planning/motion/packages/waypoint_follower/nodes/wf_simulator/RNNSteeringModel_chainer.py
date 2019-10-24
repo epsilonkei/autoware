@@ -50,16 +50,14 @@ class RNNSteeringModel(Chain):
         else:
             _RNNinput = RNNinput.reshape(1, -1) # TODO
             RNNpred = self.predictor(_RNNinput)
-            nextState = RNNpred.reshape(1, -1) + physPred
+            nextState = np.array((0, 0, 0, 0, RNNpred.data[0])) + physPred
         # Update simulation time
         self.physModel.updateSimulationTime()
         # Update Simulation Act
-        if self.__onlySim:
-            self.physModel.updateSimulationActValue(nextState)
-        else:
-            self.physModel.updateSimulationActValue(nextState.data.flatten())
+        self.physModel.updateSimulationActValue(nextState)
+        if not self.__onlySim:
             # Update Vehicle Model State for next calcVehicleModel iteration
-            self.physModel.updateVehicleModelState(nextState.data.flatten())
+            self.physModel.updateVehicleModelState(nextState)
         return nextState
 
     def __call__(self, state, _nextActValue):
@@ -115,8 +113,6 @@ if __name__ == '__main__':
     parser.add_argument('--basename', type=str, help='Log basename')
     parser.add_argument('--datcfg', type=str, help='Training data config', metavar='file')
     parser.add_argument('--cutoff_time', '-c', default=0.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
-    parser.add_argument('--RNNarch', type=str, default='InputOnlyVelSteer',
-                        choices=('InputOnlyState', 'IncludeXYyaw', 'InputOnlyVelSteer'))
     parser.add_argument('--demo', '-d', action='store_true', default=False,
                         help='--demo for test predict model')
     parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
@@ -141,30 +137,12 @@ if __name__ == '__main__':
 
     # Create WF simulator instance + intialize (if necessary)
     wfSim = WFSimulator(loop_rate = 50.0, wheel_base = 2.7)
-    if args.RNNarch == 'InputOnlyVelSteer':
-        '''
-        RNN parameter: n_input, n_units, n_output
-        n_input = 2 (vx, steer) + size_of input, n_output = size of state,
-        In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer], input = [v_d, steer_d]
-        -> n_input = 4, n_output = 5
-        '''
-        predictor = RNN(4, 10, 5)
-    elif args.RNNarch == 'IncludeXYyaw':
-        '''
-        RNN parameter: n_input, n_units, n_output
-        n_input = size of state + size_of input, n_output = size of state,
-        In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer], input = [v_d, steer_d]
-        -> n_input = 7, n_output = 5
-        '''
-        predictor = RNN(7, 10, 5)
-    elif args.RNNarch == 'InputOnlyState':
-        '''
-        RNN parameter: n_input, n_units, n_output
-        n_input = n_output = size of state,
-        In this case, with TimeDelaySteerModel, state = [x, y, yaw, vx, steer], input = [v_d, steer_d]
-        -> n_input = 5, n_output = 5
-        '''
-        predictor = RNN(5, 10, 5)
+    '''
+    RNN parameter: n_input, n_units, n_output
+    Input = [v, steer, v_d, steer_d], output = [steer]
+    -> n_input = 4, n_output = 1
+    '''
+    predictor = RNN(4, 10, 1)
     model = RNNSteeringModel(predictor, wfSim, onlySim = args.onlySim)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
@@ -184,22 +162,16 @@ if __name__ == '__main__':
         _model.physModel.prevSimulate(init_state)
         def __runOptimizer():
             optimizer.target.zerograds()
-            loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss
+            # loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss
+            loss = batch_steer_loss + batch_dsteer_loss
             loss.backward()
             loss.unchain_backward()
             optimizer.update()
         while _model.physModel.isSimulateEpochFinish():
             state = _model.physModel.getVehicleState()
             inputCmd = model.physModel.getVehicleInputCmd()
-            if args.RNNarch == 'InputOnlyVelSteer':
-                # RNN input = [v, steer, v_d, steer_d]
-                RNNinput = np.concatenate([state[3:5], inputCmd])
-            elif args.RNNarch == 'IncludeXYyaw':
-                # RNN input = [x, y, yaw, v, steer, v_d, steer_d]
-                RNNinput = np.concatenate([state, inputCmd])
-            elif args.RNNarch == 'InputOnlyState':
-                # RNN input = [x, y, yaw, v, steer]
-                RNNinput = state
+            # RNN input = [v, steer, v_d, steer_d]
+            RNNinput = np.concatenate([state[3:5], inputCmd])
             nextActValue = _model.physModel.calcLinearInterpolateNextActValue()
             if model.physModel.isInCutoffTime():
                 _ , _, _ = _model(RNNinput, nextActValue)
