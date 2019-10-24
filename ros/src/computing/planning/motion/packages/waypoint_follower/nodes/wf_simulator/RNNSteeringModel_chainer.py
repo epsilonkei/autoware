@@ -23,11 +23,10 @@ except ImportError:
 # import cupy
 
 class RNNSteeringModel(Chain):
-    def __init__(self, predictor, _physModel, cutoff_time = 0.0, onlySim = False):
+    def __init__(self, predictor, _physModel, onlySim = False):
         super(RNNSteeringModel, self).__init__(predictor=predictor)
         self.physModel = _physModel
         self.__onlySim = onlySim
-        self._cutoff_time = cutoff_time
         self.__prev_steer = None
         self.__prev_act_steer = None
 
@@ -129,8 +128,8 @@ if __name__ == '__main__':
     v0 = vel_act[0]
     steer0 = steer_act[0]
     # Create WF simulator instance + intialize (if necessary)
-    wfSim = WFSimulator(loop_rate = 50.0, wheel_base = 2.7, cutoff_time = args.cutoff_time)
-    wfSim.parseData(tm_cmd, input_cmd, tm_act, state_act)
+    wfSim = WFSimulator(loop_rate = 50.0, wheel_base = 2.7)
+    wfSim.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
     if args.RNNarch == 'InputOnlyVelSteer':
         '''
         RNN parameter: n_input, n_units, n_output

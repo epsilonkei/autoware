@@ -27,11 +27,11 @@ class WFSimulator(object):
                           __DELAY_FORKLIFT_RLS) = range(0,7)
 
     def __init__(self,
-                 loop_rate, wheel_base, cutoff_time,
+                 loop_rate, wheel_base,
                  vehicle_model = 'DELAY_STEER'):
         self.__wheel_base = wheel_base
         self.__dt = 1.0 / loop_rate
-        self.__cutoff_time = cutoff_time
+        self.__cutoff_time = 0.0
         self.tm_cmd = None
         self.input_cmd = None
         self.tm_act = None
@@ -63,11 +63,12 @@ class WFSimulator(object):
         self.__ind_cmd = 0
         self.__ind_act = 0
 
-    def parseData(self, _tm_cmd, _input_cmd, _tm_act, _state_act):
+    def parseData(self, _tm_cmd, _input_cmd, _tm_act, _state_act, _cutoff_time):
         self.tm_cmd = _tm_cmd
         self.input_cmd = _input_cmd
         self.tm_act = _tm_act
         self.state_act = _state_act
+        self.cutoff_time = _cutoff_time
 
     def calcLinearInterpolateActValue(self):
         act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
