@@ -129,6 +129,10 @@ class WFSimulator(object):
         self.__prev_state = self.__vehicle_model.getState().copy()
         self.__ind_cmd = 0
         self.__ind_act = 0
+        # Reset Vehicle Model
+        if self.__vehicle_model_type == self.__VehicleModelType[self.__DELAY_STEER]:
+            self.__vehicle_model.initializeInputQueue(self.__dt)
+        self.updateVehicleCmd()
         self.updateSimulationActValue(self.__vehicle_model.getState())
 
     def getVehicleState(self):
@@ -159,11 +163,11 @@ class WFSimulator(object):
         self.__tm += self.__dt
 
     def simulateOneStep(self):
-        self.updateVehicleCmd()
         self.savePrevState()
         self.calcVehicleState()
         self.updateSimulationTime()
         self.updateSimulationActValue(self.__vehicle_model.getState())
+        self.updateVehicleCmd()
 
     def isSimulateEpochFinish(self):
         return self.__tm < self.__tm_end

@@ -33,13 +33,15 @@ class RNNSteeringModel(Chain):
         self.__prev_steer = None
         self.__prev_act_steer = None
 
+    def resetPrevSteer(self):
+        self.__prev_steer = None
+        self.__prev_act_steer = None
+
     def predictNextState(self, RNNinput):
         '''
         return RNN predict + Physics function
         @override of WFSimulator.simulateOneStep()
         '''
-        # Update Vehicle Cmd
-        self.physModel.updateVehicleCmd()
         # Save prev_state
         self.physModel.savePrevState()
         # Calculate Vehicle State (Eg: Runge-Kutta)
@@ -58,6 +60,8 @@ class RNNSteeringModel(Chain):
         if not self.__onlySim:
             # Update Vehicle Model State for next calcVehicleModel iteration
             self.physModel.updateVehicleModelState(nextState)
+        # Update Vehicle Cmd
+        self.physModel.updateVehicleCmd()
         return nextState
 
     def __call__(self, state, _nextActValue):
@@ -159,7 +163,9 @@ if __name__ == '__main__':
         batch_steer_loss = 0.0
         batch_dsteer_loss = 0.0
         batch_cnt = 0
+        ## Reset state
         _model.physModel.prevSimulate(init_state)
+        _model.resetPrevSteer()
         def __runOptimizer():
             optimizer.target.zerograds()
             # loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss

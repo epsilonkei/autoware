@@ -25,9 +25,9 @@ class VehicleModelTimeDelaySteer(VehicleModelAbstract):
         self.__vel_time_const = vel_time_const
         self.__steer_delay = steer_delay
         self.__steer_time_const = steer_time_const
-        self.__initializeInputQueue(dt)
+        self.initializeInputQueue(dt)
 
-    def __initializeInputQueue(self, dt):
+    def initializeInputQueue(self, dt):
         self.__vel_input_queue = deque()
         self.__steer_input_queue = deque()
         vel_input_queue_size = int(round(self.__vel_delay / dt))
