@@ -328,6 +328,7 @@ if __name__ == '__main__':
                 # reset batch loss
                 batch_vel_loss = 0.0
                 batch_steer_loss = 0.0
+                batch_dsteer_loss = 0.0
                 batch_cnt = 0
         # Update model using remain part data
         if train and batch_cnt > 0:
