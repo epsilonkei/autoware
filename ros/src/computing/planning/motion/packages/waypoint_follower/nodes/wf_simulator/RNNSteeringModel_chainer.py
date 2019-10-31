@@ -52,14 +52,17 @@ class RNNSteeringModel(Chain):
         else:
             _RNNinput = RNNinput.reshape(1, -1) # TODO
             RNNpred = self.predictor(_RNNinput)
-            nextState = np.array((0, 0, 0, 0, RNNpred.data[0])) + physPred
+            nextState = F.concat((np.array([[0.0, 0.0, 0.0, 0.0]]), RNNpred)) + physPred
         # Update simulation time
         self.physModel.updateSimulationTime()
         # Update Simulation Act
-        self.physModel.updateSimulationActValue(nextState)
+        if self.__onlySim:
+            self.physModel.updateSimulationActValue(nextState)
+        else:
+            self.physModel.updateSimulationActValue(nextState.data.flatten())
         if not self.__onlySim:
             # Update Vehicle Model State for next calcVehicleModel iteration
-            self.physModel.updateVehicleModelState(nextState)
+            self.physModel.updateVehicleModelState(nextState.data.flatten())
         # Update Vehicle Cmd
         self.physModel.updateVehicleCmd()
         return nextState
