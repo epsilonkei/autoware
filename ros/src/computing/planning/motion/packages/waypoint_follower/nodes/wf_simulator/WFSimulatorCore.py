@@ -68,7 +68,7 @@ class WFSimulator(object):
         self.input_cmd = _input_cmd
         self.tm_act = _tm_act
         self.state_act = _state_act
-        self.cutoff_time = _cutoff_time
+        self.__cutoff_time = _cutoff_time
 
     def calcLinearInterpolateActValue(self):
         act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],

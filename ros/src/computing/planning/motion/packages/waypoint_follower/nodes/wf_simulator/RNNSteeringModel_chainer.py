@@ -240,6 +240,8 @@ if __name__ == '__main__':
         serializers.save_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
     else:
         # Test mode
+        tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
+        model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
         model.predictor.reset_state()
         vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=False)
         print ('Test velocity loss: %2.6e, Test steer loss: %2.6e, Test dsteer loss: %2.6e'%(vel_loss.data, steer_loss.data, dsteer_loss.data))
