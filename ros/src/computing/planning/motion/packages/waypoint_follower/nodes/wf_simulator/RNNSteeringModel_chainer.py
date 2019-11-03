@@ -15,6 +15,7 @@ from RNN import RNN, set_random_seed
 import time
 import sys
 import yaml
+from saveCodeStatus import saveCodeStatus
 import random
 
 try:
@@ -223,6 +224,7 @@ if __name__ == '__main__':
         for ele in [f_result, f_model]:
             if not os.path.exists(ele):
                 os.makedirs(ele)
+        saveCodeStatus(f_result)
 
         with open(os.path.join(f_result, 'train_log.txt'), mode='w') as log:
             for epoch in range(args.epoch):
