@@ -126,8 +126,10 @@ if __name__ == '__main__':
     parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
     parser.add_argument('--onlySim', '-o', action='store_true', default=False,
                         help='--onlySim for disable using RNN predict')
-    parser.add_argument('--epoch', '-e', type=int, default=100,
+    parser.add_argument('--epoch', '-e', type=int, default=200,
                         help='Number of epochs for training')
+    parser.add_argument('--save_eps', type=int, default=10,
+                        help='Save model every args.save_eps epochs')
     parser.add_argument('--batch', type=int, default=100,
                         help='Batch for update training model')
     parser.add_argument('--seed', '-s', type=int, default=0,
@@ -218,7 +220,7 @@ if __name__ == '__main__':
         else:
             tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
             model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
-        log_folder = time.strftime("%Y%m%d%H%M%S") + '_' + args.log_suffix
+        log_folder = time.strftime('%Y%m%d%H%M%S') + '_' + args.log_suffix
         f_result = log_folder
         f_model = log_folder + '/saved_model'
         for ele in [f_result, f_model]:
@@ -227,7 +229,7 @@ if __name__ == '__main__':
         saveCodeStatus(f_result)
 
         with open(os.path.join(f_result, 'train_log.txt'), mode='w') as log:
-            for epoch in range(args.epoch):
+            for epoch in range(1, args.epoch + 1):
                 model.predictor.reset_state()
                 if args.datcfg:
                     ind = random.randrange(len(data_list))
@@ -239,7 +241,8 @@ if __name__ == '__main__':
                 print ('Epoch: %4d, Velocity loss: %2.6e, Steer loss: %2.6e, dSteer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data, dsteer_loss.data))
                 log.write('%4d %2.6e %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data,
                                                dsteer_loss.data))
-        serializers.save_npz(os.path.join(f_model, "RNNSteeringModel_chainer.npz"), model)
+                if epoch % args.save_eps == 0:
+                    serializers.save_npz(os.path.join(f_model, '%3d.npz'%(epoch)), model)
     else:
         # Test mode
         tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
