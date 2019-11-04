@@ -150,7 +150,7 @@ if __name__ == '__main__':
     Input = [v, steer, v_d, steer_d], output = [steer]
     -> n_input = 4, n_output = 1
     '''
-    predictor = RNN(4, 10, 1)
+    predictor = RNN(4, 32, 1)
     model = RNNSteeringModel(predictor, wfSim, onlySim = args.onlySim)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
@@ -173,7 +173,7 @@ if __name__ == '__main__':
         def __runOptimizer():
             optimizer.target.zerograds()
             # loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss
-            loss = batch_steer_loss + batch_dsteer_loss
+            loss = batch_steer_loss + 0.01 * batch_dsteer_loss
             loss.backward()
             loss.unchain_backward()
             optimizer.update()

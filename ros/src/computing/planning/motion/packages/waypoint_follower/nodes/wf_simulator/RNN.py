@@ -20,13 +20,19 @@ class RNN(Chain):
         super(RNN, self).__init__(
             l1 = L.Linear(n_input, n_hidden),
             l2 = L.LSTM(n_hidden, n_hidden),
-            l3 = L.Linear(n_hidden, n_output),
+            l3 = L.LSTM(n_hidden, n_hidden),
+            l4 = L.LSTM(n_hidden, n_hidden),
+            l5 = L.Linear(n_hidden, n_output),
         )
 
     def reset_state(self):
         self.l2.reset_state()
+        self.l3.reset_state()
+        self.l4.reset_state()
 
     def __call__(self, x):
-        h1 = self.l1(x)
-        h2 = self.l2(h1)
-        return self.l3(h2)
+        h1 = F.relu(self.l1(x))
+        h2 = F.relu(self.l2(h1))
+        h3 = F.relu(self.l3(h2))
+        h4 = F.relu(self.l4(h3))
+        return self.l5(h4)
