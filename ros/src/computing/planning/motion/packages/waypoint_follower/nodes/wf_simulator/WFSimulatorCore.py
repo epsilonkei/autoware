@@ -31,7 +31,8 @@ class WFSimulator(object):
                  vehicle_model = 'DELAY_STEER'):
         self.__wheel_base = wheel_base
         self.__dt = 1.0 / loop_rate
-        self.__cutoff_time = 0.0
+        self.__lower_cutoff_time = 0.0
+        self.__upper_cutoff_time = np.inf
         self.tm_cmd = None
         self.input_cmd = None
         self.tm_act = None
@@ -63,12 +64,14 @@ class WFSimulator(object):
         self.__ind_cmd = 0
         self.__ind_act = 0
 
-    def parseData(self, _tm_cmd, _input_cmd, _tm_act, _state_act, _cutoff_time):
+    def parseData(self, _tm_cmd, _input_cmd, _tm_act, _state_act,
+                  _lower_cutoff_time, _upper_cutoff_time):
         self.tm_cmd = _tm_cmd
         self.input_cmd = _input_cmd
         self.tm_act = _tm_act
         self.state_act = _state_act
-        self.__cutoff_time = _cutoff_time
+        self.__lower_cutoff_time = _lower_cutoff_time
+        self.__upper_cutoff_time = _upper_cutoff_time if _upper_cutoff_time > 0.0 else np.inf
 
     def calcLinearInterpolateActValue(self):
         if self.__ind_act >= len(self.tm_act):
@@ -179,7 +182,7 @@ class WFSimulator(object):
         return self.__tm < self.__tm_end
 
     def isInCutoffTime(self):
-        return self.__tm < self.__cutoff_time
+        return self.__tm < self.__lower_cutoff_time or self.__tm > self.__upper_cutoff_time
 
     def wrapSimStateAct(self):
         self.sim_state_act = np.array(self.sim_state_act)

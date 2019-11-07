@@ -120,7 +120,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
     parser.add_argument('--basename', type=str, help='Log basename')
     parser.add_argument('--datcfg', type=str, help='Training data config', metavar='file')
-    parser.add_argument('--cutoff_time', '-c', default=0.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
+    parser.add_argument('--lower_cutoff_time', default=0.0, type=float, help='Lower cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time (default is 0.0)')
+    parser.add_argument('--upper_cutoff_time', default=-1.0, type=float, help='Upper cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time, minus value for set upper cutoff_time as the end of bag file (default is -1.0)')
     parser.add_argument('--demo', '-d', action='store_true', default=False,
                         help='--demo for test predict model')
     parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
@@ -234,7 +235,8 @@ if __name__ == '__main__':
                 init_states.append(_init_state)
         else:
             tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
-            model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
+            model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act,
+                                      args.lower_cutoff_time, args.upper_cutoff_time)
         log_folder = time.strftime('%Y%m%d%H%M%S') + '_' + args.log_suffix
         f_result = log_folder
         f_model = log_folder + '/saved_model'
@@ -249,7 +251,8 @@ if __name__ == '__main__':
                 if args.datcfg:
                     ind = random.randrange(len(data_list))
                     model.physModel.parseData(tm_cmds[ind], input_cmds[ind], tm_acts[ind], state_acts[ind], \
-                                              data_list[ind]['cutoff_time'])
+                                              data_list[ind]['lower_cutoff_time'],
+                                              data_list[ind]['upper_cutoff_time'])
                     vel_loss, steer_loss, dsteer_loss = updateModel(model, init_states[ind], train=True)
                 else:
                     vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=True)
@@ -261,7 +264,8 @@ if __name__ == '__main__':
     else:
         # Test mode
         tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
-        model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
+        model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act,
+                                  args.lower_cutoff_time, args.upper_cutoff_time)
         model.predictor.reset_state()
         vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=False)
         print ('Test velocity loss: %2.6e, Test steer loss: %2.6e, Test dsteer loss: %2.6e'%(vel_loss.data, steer_loss.data, dsteer_loss.data))
