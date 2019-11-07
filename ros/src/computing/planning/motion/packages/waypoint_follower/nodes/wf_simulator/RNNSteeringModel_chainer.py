@@ -219,10 +219,19 @@ if __name__ == '__main__':
         # Training mode
         if args.datcfg:
             with open(args.datcfg, 'r') as f:
-                data_list = yaml.load(f)
-            tm_cmds = input_cmds = tm_acts = state_acts = init_states = [None] * len(data_list)
-            for i, data in enumerate(data_list['logs']):
-                tm_cmds[i], input_cmds[i], tm_acts[i], state_acts[i], init_states[i] = getDataFromLog(data['basename'])
+                data_list = yaml.load(f)['logs']
+            tm_cmds = []
+            input_cmds = []
+            tm_acts = []
+            state_acts = []
+            init_states = []
+            for data in data_list:
+                _tm_cmd, _input_cmd, _tm_act, _state_act, _init_state = getDataFromLog(data['basename'])
+                tm_cmds.append(_tm_cmd)
+                input_cmds.append(_input_cmd)
+                state_acts.append(_state_act)
+                tm_acts.append(_tm_act)
+                init_states.append(_init_state)
         else:
             tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
             model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
@@ -240,13 +249,13 @@ if __name__ == '__main__':
                 if args.datcfg:
                     ind = random.randrange(len(data_list))
                     model.physModel.parseData(tm_cmds[ind], input_cmds[ind], tm_acts[ind], state_acts[ind], \
-                                              data_list['logs'][ind]['cutoff_time'])
+                                              data_list[ind]['cutoff_time'])
                     vel_loss, steer_loss, dsteer_loss = updateModel(model, init_states[ind], train=True)
                 else:
                     vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=True)
                 print ('Epoch: %4d, Velocity loss: %2.6e, Steer loss: %2.6e, dSteer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data, dsteer_loss.data))
                 log.write('%4d %2.6e %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data,
-                                               dsteer_loss.data))
+                                                     dsteer_loss.data))
                 if epoch % args.save_eps == 0:
                     serializers.save_npz(os.path.join(f_model, '%3d.npz'%(epoch)), model)
     else:
