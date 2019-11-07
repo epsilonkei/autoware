@@ -71,11 +71,18 @@ class WFSimulator(object):
         self.__cutoff_time = _cutoff_time
 
     def calcLinearInterpolateActValue(self):
-        act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
-                                         self.tm_act[self.__ind_act],
-                                         self.state_act[:,self.__ind_act - 1],
-                                         self.state_act[:,self.__ind_act],
-                                         self.__tm)
+        if self.__ind_act >= len(self.tm_act):
+            act_state = getLinearInterpolate(self.tm_act[-2],
+                                             self.tm_act[-1],
+                                             self.state_act[:,-2],
+                                             self.state_act[:,-1],
+                                             self.__tm + self.__dt)
+        else:
+            act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
+                                             self.tm_act[self.__ind_act],
+                                             self.state_act[:,self.__ind_act - 1],
+                                             self.state_act[:,self.__ind_act],
+                                             self.__tm)
         return act_state
 
     def calcLinearInterpolateNextActValue(self):
@@ -85,7 +92,6 @@ class WFSimulator(object):
                                              self.state_act[:,-2],
                                              self.state_act[:,-1],
                                              self.__tm + self.__dt)
-
         elif self.__tm + self.__dt < self.tm_act[self.__ind_act] or \
              self.__ind_act + 1 >= len(self.tm_act):
             act_state = getLinearInterpolate(self.tm_act[self.__ind_act - 1],
