@@ -126,6 +126,8 @@ if __name__ == '__main__':
     parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
     parser.add_argument('--onlySim', '-o', action='store_true', default=False,
                         help='--onlySim for disable using RNN predict')
+    parser.add_argument('--noGTInput', action='store_true', default=False,
+                        help='--noGTInput for training RNN with input from previous simulated output')
     parser.add_argument('--epoch', '-e', type=int, default=200,
                         help='Number of epochs for training')
     parser.add_argument('--save_eps', type=int, default=10,
@@ -175,15 +177,19 @@ if __name__ == '__main__':
         def __runOptimizer():
             optimizer.target.zerograds()
             # loss = batch_vel_loss + batch_steer_loss + batch_dsteer_loss
-            loss = batch_steer_loss + 0.01 * batch_dsteer_loss
+            loss = batch_steer_loss # + 0.01 * batch_dsteer_loss
             loss.backward()
             loss.unchain_backward()
             optimizer.update()
         while _model.physModel.isSimulateEpochFinish():
-            state = _model.physModel.getVehicleState()
             inputCmd = model.physModel.getVehicleInputCmd()
             # RNN input = [v, steer, v_d, steer_d]
-            RNNinput = np.concatenate([state[3:5], inputCmd])
+            if not train or args.noGTInput:
+                actState = _model.physModel.calcLinearInterpolateActValue()
+                RNNinput = np.concatenate([actState, inputCmd])
+            else:
+                state = _model.physModel.getVehicleState()
+                RNNinput = np.concatenate([state[3:5], inputCmd])
             nextActValue = _model.physModel.calcLinearInterpolateNextActValue()
             if model.physModel.isInCutoffTime():
                 _ , _, _ = _model(RNNinput, nextActValue)
