@@ -182,7 +182,7 @@ if __name__ == '__main__':
             loss.backward()
             loss.unchain_backward()
             optimizer.update()
-        while _model.physModel.isSimulateEpochFinish():
+        while not _model.physModel.isSimulateEpochFinish():
             inputCmd = model.physModel.getVehicleInputCmd()
             # RNN input = [v, steer, v_d, steer_d]
             if not train or args.noGTInput:

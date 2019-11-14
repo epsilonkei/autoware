@@ -179,16 +179,18 @@ class WFSimulator(object):
         self.updateVehicleCmd()
 
     def isSimulateEpochFinish(self):
-        return self.__tm < self.__tm_end
+        return self.__tm > self.__tm_end
 
     def isInCutoffTime(self):
         return self.__tm < self.__lower_cutoff_time or self.__tm > self.__upper_cutoff_time
 
     def wrapSimStateAct(self):
+        if self.__ind_act < len(self.tm_act):
+            self.updateSimulationActValue(self.__vehicle_model.getState())
         self.sim_state_act = np.array(self.sim_state_act)
 
     def simulate(self):
-        while self.isSimulateEpochFinish():
+        while not self.isSimulateEpochFinish():
             self.simulateOneStep()
         self.wrapSimStateAct()
 

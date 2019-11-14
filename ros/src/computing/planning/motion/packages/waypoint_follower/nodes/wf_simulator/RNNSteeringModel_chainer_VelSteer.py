@@ -126,7 +126,7 @@ class RNNSteeringModel(Chain):
         self.__tm += self.__dt
 
     def isSimulateEpochFinish(self):
-        return self.__tm < self.__tm_end
+        return self.__tm > self.__tm_end
 
     def isInCutoffTime(self):
         return self.__tm < self.__cutoff_time
@@ -308,7 +308,7 @@ if __name__ == '__main__':
             loss.backward()
             loss.unchain_backward()
             optimizer.update()
-        while _model.isSimulateEpochFinish():
+        while not _model.isSimulateEpochFinish():
             input_x = _model.getInputX()
             actValue = _model.calcLinearInterpolateNextActValue()
             if model.isInCutoffTime():
