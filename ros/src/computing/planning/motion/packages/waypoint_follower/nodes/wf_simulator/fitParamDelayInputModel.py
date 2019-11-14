@@ -3,10 +3,8 @@
 
 import numpy as np
 import argparse
-import subprocess
 import sys
-from os import getcwd
-from os.path import dirname, basename, splitext, join, exists
+from rosbag2csv import basename_to_csv, rel2abs
 try:
     import pandas as pd
 except ImportError:
@@ -22,24 +20,6 @@ def lowpass_filter(data, cutoff_freq=2, order=1, dt=FREQ_SAMPLE):
         for i in range(1,len(data)):
             data[i] = (tau / (tau + dt) * data[i-1] + dt / (tau + dt) * data[i])
     return data
-
-def rel2abs(path):
-    '''
-    Return absolute path from relative path input
-    '''
-    return join(getcwd(), path)
-
-def rosbag_to_csv(path, topic_name):
-    name = splitext(basename(path))[0]
-    suffix = topic_name.replace('/', '-')
-    output_path = join(dirname(path), name + '_' + suffix + '.csv')
-    if exists(output_path):
-        return output_path
-    else:
-        command = "rostopic echo -b {0} -p /{1} | sed -e 's/,/ /g' > {2}".format(path, topic_name, output_path)
-        print (command)
-        subprocess.check_call(command, shell=True)
-        return output_path
 
 def getActValue(df, speed_type):
     tm = np.array(list(df['%time'])) * 1e-9
@@ -70,16 +50,19 @@ def getFittingTimeConstantParam(cmd_data, act_data, \
     tm_cmd, cmd_delay = getCmdValueWithDelay(cmd_data, delay)
     tm_act, act, dact = getActValue(act_data, speed_type)
     _t_min = max(tm_cmd[0], tm_act[0])
-    _t_max = min(tm_cmd[-1], tm_act[-1])
     tm_cmd = tm_cmd - _t_min
     tm_act = tm_act - _t_min
-    MAX_CNT = int((_t_max - _t_min - args.cutoff_time) / FREQ_SAMPLE)
+    if args.upper_cutoff_time > 0:
+        _t_max = min(tm_cmd[-1], tm_act[-1], args.upper_cutoff_time)
+    else:
+        _t_max = min(tm_cmd[-1], tm_act[-1])
+    MAX_CNT = int((_t_max - args.lower_cutoff_time) / FREQ_SAMPLE)
     dact_samp = [None] * MAX_CNT
     diff_actcmd_samp = [None] * MAX_CNT
     ind_cmd = 0
     ind_act = 0
     for ind in range(MAX_CNT):
-        ti = ind * FREQ_SAMPLE + args.cutoff_time
+        ti = ind * FREQ_SAMPLE + args.lower_cutoff_time
         while (tm_cmd[ind_cmd + 1] < ti):
             ind_cmd += 1
         cmd_delay_i = getLinearInterpolate(tm_cmd, cmd_delay, ind_cmd, ti)
@@ -117,22 +100,27 @@ def getFittingParam(cmd_data, act_data, args, speed_type = False):
             break
     return tau_opt, delay_opt, error_min
 
+def getDataFromLog(basename):
+    pd_data = [None] * len(topics)
+    for i, topic in enumerate(topics):
+        csv_log = basename_to_csv(rel2abs(args.basename), topic)
+        pd_data[i] = pd.read_csv(csv_log, sep=' ')
+    return pd_data
+
 if __name__ == '__main__':
     topics = [ 'vehicle_cmd/ctrl_cmd/steering_angle', 'vehicle_status/angle', \
                'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed']
-    pd_data = [None] * len(topics)
     parser = argparse.ArgumentParser(description='Paramter fitting for Input Delay Model (First Order System with Dead Time) with rosbag file input')
-    parser.add_argument('--bag_file', '-b', required=True, type=str, help='rosbag file', metavar='file')
-    parser.add_argument('--cutoff_time', default=1.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
+    parser.add_argument('--basename', type=str, help='rosbag basename')
+    parser.add_argument('--lower_cutoff_time', default=0.0, type=float, help='Lower cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time (default is 0.0)')
+    parser.add_argument('--upper_cutoff_time', default=-1.0, type=float, help='Upper cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time, minus value for set upper cutoff_time as the end of bag file (default is -1.0)')
     parser.add_argument('--cutoff_freq', default=0.1, type=float, help='Cutoff freq for low-pass filter[Hz], negative value will disable low-pass filter (default is 0.1)')
     parser.add_argument('--min_delay', default=0.1, type=float, help='Min value for searching delay loop (default is 0.1)')
     parser.add_argument('--max_delay', default=1.0, type=float, help='Max value for searching delay loop (default is 1.0)')
     parser.add_argument('--delay_incr', default=0.01, type=float, help='Step value for searching delay loop (default is 0.01)')
     args = parser.parse_args()
 
-    for i, topic in enumerate(topics):
-        csv_log = rosbag_to_csv(rel2abs(args.bag_file), topic)
-        pd_data[i] = pd.read_csv(csv_log, sep=' ')
+    pd_data = getDataFromLog(args.basename)
     tau_opt, delay_opt, error = getFittingParam(pd_data[0], pd_data[1], args, speed_type=False)
     print ('Steer angle: tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
     tau_opt, delay_opt, error = getFittingParam(pd_data[2], pd_data[3], args, speed_type=True)
