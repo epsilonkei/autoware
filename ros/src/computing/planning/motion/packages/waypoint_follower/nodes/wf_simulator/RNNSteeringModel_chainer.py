@@ -115,6 +115,14 @@ def getDataFromLog(basename):
     steer0 = steer_act[0]
     return tm_cmd, input_cmd, tm_act, state_act, (px0, py0, yaw0, v0, steer0)
 
+def evaluateModel(basename, lower_cutoff_time, upper_cutoff_time):
+    tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(basename)
+    model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act,
+                              lower_cutoff_time, upper_cutoff_time)
+    model.predictor.reset_state()
+    vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=False)
+    return vel_loss, steer_loss, dsteer_loss
+
 if __name__ == '__main__':
     # argparse
     parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
@@ -220,7 +228,9 @@ if __name__ == '__main__':
         # Training mode
         if args.datcfg:
             with open(args.datcfg, 'r') as f:
-                data_list = yaml.load(f)['logs']
+                cfg = yaml.load(f)
+                data_list = cfg['train']
+                test = cfg['test']
             tm_cmds = []
             input_cmds = []
             tm_acts = []
@@ -245,29 +255,34 @@ if __name__ == '__main__':
                 os.makedirs(ele)
         saveCodeStatus(f_result)
 
-        with open(os.path.join(f_result, 'train_log.txt'), mode='w') as log:
-            for epoch in range(1, args.epoch + 1):
-                model.predictor.reset_state()
-                if args.datcfg:
-                    ind = random.randrange(len(data_list))
-                    model.physModel.parseData(tm_cmds[ind], input_cmds[ind], tm_acts[ind], state_acts[ind], \
-                                              data_list[ind]['lower_cutoff_time'],
-                                              data_list[ind]['upper_cutoff_time'])
-                    vel_loss, steer_loss, dsteer_loss = updateModel(model, init_states[ind], train=True)
-                else:
-                    vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=True)
-                print ('Epoch: %4d, Velocity loss: %2.6e, Steer loss: %2.6e, dSteer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data, dsteer_loss.data))
-                log.write('%4d %2.6e %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data,
-                                                     dsteer_loss.data))
-                if epoch % args.save_eps == 0:
-                    serializers.save_npz(os.path.join(f_model, '%3d.npz'%(epoch)), model)
+        train_log = open(os.path.join(f_result, 'train_log.txt'), mode='w')
+        test_log = open(os.path.join(f_result, 'test_log.txt'), mode='w')
+        for epoch in range(1, args.epoch + 1):
+            model.predictor.reset_state()
+            if args.datcfg:
+                ind = random.randrange(len(data_list))
+                model.physModel.parseData(tm_cmds[ind], input_cmds[ind], tm_acts[ind], state_acts[ind], \
+                                          data_list[ind]['lower_cutoff_time'],
+                                          data_list[ind]['upper_cutoff_time'])
+                vel_loss, steer_loss, dsteer_loss = updateModel(model, init_states[ind], train=True)
+            else:
+                vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=True)
+            print ('Epoch: %4d, Velocity loss: %2.6e, Steer loss: %2.6e, dSteer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data, dsteer_loss.data))
+            train_log.write('%4d %2.6e %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data,
+                                                       dsteer_loss.data))
+            if epoch % args.save_eps == 0:
+                # Test with test data and save model
+                vel_loss, steer_loss, dsteer_loss = evaluateModel(test[0]['basename'],
+                              test[0]['lower_cutoff_time'], test[0]['upper_cutoff_time'])
+                print ('Epoch: %4d, Test velocity loss: %2.6e, Test steer loss: %2.6e, Test dsteer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data, dsteer_loss.data))
+                test_log.write('%4d %2.6e %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data,
+                                                          dsteer_loss.data))
+                serializers.save_npz(os.path.join(f_model, '%3d.npz'%(epoch)), model)
+        train_log.close()
+        test_log.close()
     else:
         # Test mode
-        tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
-        model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act,
-                                  args.lower_cutoff_time, args.upper_cutoff_time)
-        model.predictor.reset_state()
-        vel_loss, steer_loss, dsteer_loss = updateModel(model, init_state, train=False)
+        vel_loss, steer_loss, dsteer_loss = evaluateModel(args.basename, args.lower_cutoff_time, args.upper_cutoff_time)
         print ('Test velocity loss: %2.6e, Test steer loss: %2.6e, Test dsteer loss: %2.6e'%(vel_loss.data, steer_loss.data, dsteer_loss.data))
         model.physModel.wrapSimStateAct()
         model.physModel.plotSimulateResultIncludeDsteer()
