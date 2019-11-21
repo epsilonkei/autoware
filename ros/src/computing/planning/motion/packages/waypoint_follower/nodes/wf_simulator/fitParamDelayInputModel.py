@@ -3,6 +3,7 @@
 
 import numpy as np
 import argparse
+import os
 import sys
 import yaml
 from rosbag2csv import basename_to_csv, rel2abs
@@ -107,9 +108,13 @@ def getFittingParam(cmd_data, act_data,
     return tau_opt, delay_opt, error_min
 
 def getDataFromLog(basename):
+    if basename[0] == '~':
+        basename = os.path.expanduser(basename)
+    else:
+        basename = rel2abs(basename)
     pd_data = [None] * len(topics)
     for i, topic in enumerate(topics):
-        csv_log = basename_to_csv(rel2abs(args.basename), topic)
+        csv_log = basename_to_csv(rel2abs(basename), topic)
         pd_data[i] = pd.read_csv(csv_log, sep=' ')
     return pd_data
 
@@ -130,10 +135,10 @@ if __name__ == '__main__':
     if args.datcfg:
         # For multi-log
         with open(args.datcfg, 'r') as f:
-            data_list = yaml.load(f)['logs']
+            data_list = yaml.load(f)['train']
         for data in data_list:
-            pd_data = getDataFromLog(data['basename'])
             print (data['basename'])
+            pd_data = getDataFromLog(data['basename'])
             tau_opt, delay_opt, error = getFittingParam(pd_data[0], pd_data[1],
                                                         data['lower_cutoff_time'],
                                                         data['upper_cutoff_time'],
