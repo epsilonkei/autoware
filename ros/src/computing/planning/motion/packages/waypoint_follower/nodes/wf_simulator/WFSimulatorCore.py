@@ -38,7 +38,7 @@ class WFSimulator(object):
         self.tm_act = None
         self.state_act = None
         # WFSimulator parameter, #TODO: it should be able to set by using rosparam
-        vel_lim = 10.0
+        vel_lim = 40.0
         steer_lim = 3.14 / 3.0
         vel_delay = 0.25
         vel_time_const = 0.6197
