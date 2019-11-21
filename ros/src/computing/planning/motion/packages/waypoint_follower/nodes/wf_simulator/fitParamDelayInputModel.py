@@ -4,6 +4,7 @@
 import numpy as np
 import argparse
 import sys
+import yaml
 from rosbag2csv import basename_to_csv, rel2abs
 try:
     import pandas as pd
@@ -45,24 +46,25 @@ def getLinearInterpolate(_tm, _val, _index, ti):
     val_i = tmp_val + (tmp_nextval - tmp_val) / (tmp_nextt - tmp_t) * (ti - tmp_t)
     return val_i
 
-def getFittingTimeConstantParam(cmd_data, act_data, \
-                                delay, args, speed_type = False):
+def getFittingTimeConstantParam(cmd_data, act_data, delay,
+                                lower_cutoff_time, upper_cutoff_time,
+                                args, speed_type = False):
     tm_cmd, cmd_delay = getCmdValueWithDelay(cmd_data, delay)
     tm_act, act, dact = getActValue(act_data, speed_type)
     _t_min = max(tm_cmd[0], tm_act[0])
     tm_cmd = tm_cmd - _t_min
     tm_act = tm_act - _t_min
-    if args.upper_cutoff_time > 0:
-        _t_max = min(tm_cmd[-1], tm_act[-1], args.upper_cutoff_time)
+    if upper_cutoff_time > 0:
+        _t_max = min(tm_cmd[-1], tm_act[-1], upper_cutoff_time)
     else:
         _t_max = min(tm_cmd[-1], tm_act[-1])
-    MAX_CNT = int((_t_max - args.lower_cutoff_time) / FREQ_SAMPLE)
+    MAX_CNT = int((_t_max - lower_cutoff_time) / FREQ_SAMPLE)
     dact_samp = [None] * MAX_CNT
     diff_actcmd_samp = [None] * MAX_CNT
     ind_cmd = 0
     ind_act = 0
     for ind in range(MAX_CNT):
-        ti = ind * FREQ_SAMPLE + args.lower_cutoff_time
+        ti = ind * FREQ_SAMPLE + lower_cutoff_time
         while (tm_cmd[ind_cmd + 1] < ti):
             ind_cmd += 1
         cmd_delay_i = getLinearInterpolate(tm_cmd, cmd_delay, ind_cmd, ti)
@@ -83,14 +85,18 @@ def getFittingTimeConstantParam(cmd_data, act_data, \
     error = np.linalg.norm(diff_actcmd_samp + tau * dact_samp) / dact_samp.shape[1]
     return tau, error
 
-def getFittingParam(cmd_data, act_data, args, speed_type = False):
+def getFittingParam(cmd_data, act_data,
+                    lower_cutoff_time, upper_cutoff_time,
+                    args, speed_type = False):
     delay_range = int((args.max_delay - args.min_delay) / args.delay_incr)
     delays = [args.min_delay + i * args.delay_incr for i in range(delay_range + 1)]
     error_min = 1.0e10
     delay_opt = -1
     tau_opt = -1
     for delay in delays:
-        tau, error = getFittingTimeConstantParam(cmd_data, act_data, delay, args, speed_type=speed_type)
+        tau, error = getFittingTimeConstantParam(cmd_data, act_data, delay,
+                                                 lower_cutoff_time, upper_cutoff_time,
+                                                 args, speed_type=speed_type)
         if tau > 0:
             if error < error_min:
                 error_min = error
@@ -112,6 +118,7 @@ if __name__ == '__main__':
                'vehicle_cmd/ctrl_cmd/linear_velocity', 'vehicle_status/speed']
     parser = argparse.ArgumentParser(description='Paramter fitting for Input Delay Model (First Order System with Dead Time) with rosbag file input')
     parser.add_argument('--basename', type=str, help='rosbag basename')
+    parser.add_argument('--datcfg', type=str, help='Training data config', metavar='file')
     parser.add_argument('--lower_cutoff_time', default=0.0, type=float, help='Lower cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time (default is 0.0)')
     parser.add_argument('--upper_cutoff_time', default=-1.0, type=float, help='Upper cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time, minus value for set upper cutoff_time as the end of bag file (default is -1.0)')
     parser.add_argument('--cutoff_freq', default=0.1, type=float, help='Cutoff freq for low-pass filter[Hz], negative value will disable low-pass filter (default is 0.1)')
@@ -120,8 +127,31 @@ if __name__ == '__main__':
     parser.add_argument('--delay_incr', default=0.01, type=float, help='Step value for searching delay loop (default is 0.01)')
     args = parser.parse_args()
 
-    pd_data = getDataFromLog(args.basename)
-    tau_opt, delay_opt, error = getFittingParam(pd_data[0], pd_data[1], args, speed_type=False)
-    print ('Steer angle: tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
-    tau_opt, delay_opt, error = getFittingParam(pd_data[2], pd_data[3], args, speed_type=True)
-    print ('Velocity   : tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
+    if args.datcfg:
+        # For multi-log
+        with open(args.datcfg, 'r') as f:
+            data_list = yaml.load(f)['logs']
+        for data in data_list:
+            pd_data = getDataFromLog(data['basename'])
+            print (data['basename'])
+            tau_opt, delay_opt, error = getFittingParam(pd_data[0], pd_data[1],
+                                                        data['lower_cutoff_time'],
+                                                        data['upper_cutoff_time'],
+                                                        args, speed_type=False)
+            print ('Steer angle: tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
+            tau_opt, delay_opt, error = getFittingParam(pd_data[2], pd_data[3],
+                                                        data['lower_cutoff_time'],
+                                                        data['upper_cutoff_time'],
+                                                        args, speed_type=True)
+            print ('Velocity   : tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
+    else:
+        # For only one log
+        pd_data = getDataFromLog(args.basename)
+        tau_opt, delay_opt, error = getFittingParam(pd_data[0], pd_data[1],
+                                                    args.lower_cutoff_time, args.upper_cutoff_time,
+                                                    args, speed_type=False)
+        print ('Steer angle: tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
+        tau_opt, delay_opt, error = getFittingParam(pd_data[2], pd_data[3],
+                                                    args.lower_cutoff_time, args.upper_cutoff_time,
+                                                    args, speed_type=True)
+        print ('Velocity   : tau_opt = %2.4f, delay_opt = %2.4f, error = %2.4e' %(tau_opt, delay_opt, error))
