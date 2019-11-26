@@ -200,7 +200,7 @@ if __name__ == '__main__':
                 state = _model.physModel.getVehicleState()
                 RNNinput = np.concatenate([state[3:5], inputCmd])
             nextActValue = _model.physModel.calcLinearInterpolateNextActValue()
-            if model.physModel.isInCutoffTime():
+            if model.physModel.isInCutoffTime() or model.physModel.isLowFriction():
                 _ , _, _ = _model(RNNinput, nextActValue)
             else:
                 iter_vel_loss, iter_steer_loss, iter_dsteer_loss = _model(RNNinput, nextActValue)
@@ -212,6 +212,7 @@ if __name__ == '__main__':
                 batch_dsteer_loss += iter_dsteer_loss
                 iter_cnt += 1
                 batch_cnt += 1
+                model.physModel.addVisualPoint()
             if train and batch_cnt == args.batch:
                 __runOptimizer()
                 # reset batch loss

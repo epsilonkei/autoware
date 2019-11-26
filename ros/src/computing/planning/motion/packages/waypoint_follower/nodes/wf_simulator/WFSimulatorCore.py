@@ -37,6 +37,8 @@ class WFSimulator(object):
         self.input_cmd = None
         self.tm_act = None
         self.state_act = None
+        self.__STEER_THRES = 0.05 # Desgined Parameter
+        self.visual_pts = []
         # WFSimulator parameter, #TODO: it should be able to set by using rosparam
         vel_lim = 40.0
         steer_lim = 3.14 / 3.0
@@ -127,6 +129,7 @@ class WFSimulator(object):
         self.setInitialState(init_state)
         # Clear simulation result list
         self.sim_state_act = []
+        self.visual_pts = []
         self.__tm = min(self.tm_cmd[0], self.tm_act[0])
         # Remove offset in tm_cmd and tm_act
         self.tm_cmd -= self.__tm
@@ -183,6 +186,13 @@ class WFSimulator(object):
 
     def isInCutoffTime(self):
         return self.__tm < self.__lower_cutoff_time or self.__tm > self.__upper_cutoff_time
+
+    def isLowFriction(self):
+        _state = self.getVehicleState()
+        return abs(_state[4]) > self.__STEER_THRES #__STEER := 4
+
+    def addVisualPoint(self):
+        self.visual_pts.append(self.__tm)
 
     def wrapSimStateAct(self):
         if self.__ind_act < len(self.tm_act):
@@ -242,6 +252,10 @@ class WFSimulator(object):
             ax2.plot(self.tm_act, self.state_act[1], label='vehicle_status/steer')
             ax2.plot(self.tm_act, self.sim_state_act[:,4], # __STEER
                      label='sim_vehicle_status/steer')
+            if len(self.visual_pts) > 0:
+                self.visual_pts = np.array(self.visual_pts)
+                zeros = np.zeros(len(self.visual_pts))
+                ax2.scatter(self.visual_pts, zeros, s=5)
             ax2.set_ylabel("Steering Angle [rad]")
             ax2.set_xlabel("Time [s]")
             ax2.legend(loc='best')
