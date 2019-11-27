@@ -188,8 +188,8 @@ class WFSimulator(object):
         return self.__tm < self.__lower_cutoff_time or self.__tm > self.__upper_cutoff_time
 
     def isLowFriction(self):
-        _state = self.getVehicleState()
-        return abs(_state[4]) > self.__STEER_THRES #__STEER := 4
+        _input = self.getVehicleInputCmd()
+        return abs(_input[1]) > self.__STEER_THRES #__STEER_DES := 2
 
     def addVisualPoint(self):
         self.visual_pts.append(self.__tm)
