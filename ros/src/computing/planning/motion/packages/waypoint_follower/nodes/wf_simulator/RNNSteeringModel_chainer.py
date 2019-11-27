@@ -38,7 +38,7 @@ class RNNSteeringModel(Chain):
         self.__prev_steer = None
         self.__prev_act_steer = None
 
-    def predictNextState(self, RNNinput):
+    def predictNextState(self, RNNinput, onlySim = False):
         '''
         return RNN predict + Physics function
         @override of WFSimulator.simulateOneStep()
@@ -48,7 +48,7 @@ class RNNSteeringModel(Chain):
         # Calculate Vehicle State (Eg: Runge-Kutta)
         self.physModel.calcVehicleState()
         physPred = self.physModel.getVehicleState()
-        if self.__onlySim:
+        if onlySim:
             nextState = physPred
         else:
             _RNNinput = RNNinput.reshape(1, -1) # TODO
@@ -57,20 +57,20 @@ class RNNSteeringModel(Chain):
         # Update simulation time
         self.physModel.updateSimulationTime()
         # Update Simulation Act
-        if self.__onlySim:
+        if onlySim:
             self.physModel.updateSimulationActValue(nextState)
         else:
             self.physModel.updateSimulationActValue(nextState.data.flatten())
-        if not self.__onlySim:
+        if not onlySim:
             # Update Vehicle Model State for next calcVehicleModel iteration
             self.physModel.updateVehicleModelState(nextState.data.flatten())
         # Update Vehicle Cmd
         self.physModel.updateVehicleCmd()
         return nextState
 
-    def __call__(self, state, _nextActValue):
+    def __call__(self, state, _nextActValue, onlySim = False):
         # state = self.physModel.getVehicleState()
-        _nextState = self.predictNextState(state)
+        _nextState = self.predictNextState(state, onlySim = onlySim)
         nextState = _nextState.reshape(-1,1)
         # _actValue = self.physModel.calcLinearInterpolateActValue()
         nextActValue = _nextActValue.reshape(-1,1)
@@ -201,9 +201,9 @@ if __name__ == '__main__':
                 RNNinput = np.concatenate([state[3:5], inputCmd])
             nextActValue = _model.physModel.calcLinearInterpolateNextActValue()
             if model.physModel.isInCutoffTime() or model.physModel.isLowFriction():
-                _ , _, _ = _model(RNNinput, nextActValue)
+                _ , _, _ = _model(RNNinput, nextActValue, onlySim=True)
             else:
-                iter_vel_loss, iter_steer_loss, iter_dsteer_loss = _model(RNNinput, nextActValue)
+                iter_vel_loss, iter_steer_loss, iter_dsteer_loss = _model(RNNinput, nextActValue, onlySim=args.onlySim)
                 model.physModel.addVisualPoint()
                 all_vel_loss += iter_vel_loss
                 all_steer_loss += iter_steer_loss
