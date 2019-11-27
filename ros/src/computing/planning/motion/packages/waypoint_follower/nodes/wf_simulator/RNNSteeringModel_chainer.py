@@ -204,6 +204,7 @@ if __name__ == '__main__':
                 _ , _, _ = _model(RNNinput, nextActValue)
             else:
                 iter_vel_loss, iter_steer_loss, iter_dsteer_loss = _model(RNNinput, nextActValue)
+                model.physModel.addVisualPoint()
                 all_vel_loss += iter_vel_loss
                 all_steer_loss += iter_steer_loss
                 all_dsteer_loss += iter_dsteer_loss
@@ -212,7 +213,6 @@ if __name__ == '__main__':
                 batch_dsteer_loss += iter_dsteer_loss
                 iter_cnt += 1
                 batch_cnt += 1
-                model.physModel.addVisualPoint()
             if train and batch_cnt == args.batch:
                 __runOptimizer()
                 # reset batch loss
