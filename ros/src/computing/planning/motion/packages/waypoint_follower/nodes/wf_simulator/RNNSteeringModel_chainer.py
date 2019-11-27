@@ -223,7 +223,10 @@ if __name__ == '__main__':
         # Update model using remain part data
         if train and batch_cnt > 0:
             __runOptimizer()
-        return all_vel_loss/iter_cnt, all_steer_loss/iter_cnt, all_dsteer_loss/iter_cnt
+        if iter_cnt > 0:
+            return all_vel_loss/iter_cnt, all_steer_loss/iter_cnt, all_dsteer_loss/iter_cnt
+        else:
+            return chainer.Variable(np.array([0.0])), chainer.Variable(np.array([0.0])), chainer.Variable(np.array([0.0]))
     ''' ======================================== '''
     if not args.demo:
         # Training mode
@@ -273,8 +276,11 @@ if __name__ == '__main__':
                                                        dsteer_loss.data))
             if epoch % args.save_eps == 0:
                 # Test with test data and save model
-                vel_loss, steer_loss, dsteer_loss = evaluateModel(test[0]['basename'],
-                              test[0]['lower_cutoff_time'], test[0]['upper_cutoff_time'])
+                if args.datcfg:
+                    vel_loss, steer_loss, dsteer_loss = evaluateModel(test[0]['basename'],
+                                                                      test[0]['lower_cutoff_time'], test[0]['upper_cutoff_time'])
+                else:
+                    vel_loss, steer_loss, dsteer_loss = evaluateModel(args.basename, args.lower_cutoff_time, args.upper_cutoff_time)
                 print ('Epoch: %4d, Test velocity loss: %2.6e, Test steer loss: %2.6e, Test dsteer loss: %2.6e'%(epoch, vel_loss.data, steer_loss.data, dsteer_loss.data))
                 test_log.write('%4d %2.6e %2.6e %2.6e\n'%(epoch, vel_loss.data, steer_loss.data,
                                                           dsteer_loss.data))
