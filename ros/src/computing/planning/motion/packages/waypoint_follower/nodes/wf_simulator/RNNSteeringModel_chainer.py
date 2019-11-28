@@ -135,6 +135,8 @@ if __name__ == '__main__':
     parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
     parser.add_argument('--onlySim', '-o', action='store_true', default=False,
                         help='--onlySim for disable using RNN predict')
+    parser.add_argument('--onlyHighFric', action='store_true', default=False,
+                        help='--onlySim for apply RNN predict for only High Friction period')
     parser.add_argument('--noGTInput', action='store_true', default=False,
                         help='--noGTInput for training RNN with input from previous simulated output')
     parser.add_argument('--epoch', '-e', type=int, default=200,
@@ -200,8 +202,12 @@ if __name__ == '__main__':
                 state = _model.physModel.getVehicleState()
                 RNNinput = np.concatenate([state[3:5], inputCmd])
             nextActValue = _model.physModel.calcLinearInterpolateNextActValue()
-            if model.physModel.isInCutoffTime() or model.physModel.isLowFriction():
-                _ , _, _ = _model(RNNinput, nextActValue, onlySim=True)
+            if model.physModel.isInCutoffTime() or \
+               args.onlyHighFric and model.physModel.isLowFriction():
+                if args.onlyHighFric:
+                    _ , _, _ = _model(RNNinput, nextActValue, onlySim=True)
+                else:
+                    _ , _, _ = _model(RNNinput, nextActValue, onlySim=args.onlySim)
             else:
                 iter_vel_loss, iter_steer_loss, iter_dsteer_loss = _model(RNNinput, nextActValue, onlySim=args.onlySim)
                 model.physModel.addVisualPoint()
@@ -292,4 +298,4 @@ if __name__ == '__main__':
         vel_loss, steer_loss, dsteer_loss = evaluateModel(args.basename, args.lower_cutoff_time, args.upper_cutoff_time)
         print ('Test velocity loss: %2.6e, Test steer loss: %2.6e, Test dsteer loss: %2.6e'%(vel_loss.data, steer_loss.data, dsteer_loss.data))
         model.physModel.wrapSimStateAct()
-        model.physModel.plotSimulateResultIncludeDsteer()
+        model.physModel.plotSimulateResultIncludeDsteer(_visual_pts = args.onlyHighFric)

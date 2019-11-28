@@ -236,7 +236,7 @@ class WFSimulator(object):
         else:
             raise NotImplementedError
 
-    def plotSimulateResultIncludeDsteer(self):
+    def plotSimulateResultIncludeDsteer(self, _visual_pts = False):
         if self.__vehicle_model_type == self.__VehicleModelType[self.__DELAY_STEER]:
             fig = plt.figure(figsize=(16, 16))
             ax1 = fig.add_subplot(311)
@@ -252,7 +252,7 @@ class WFSimulator(object):
             ax2.plot(self.tm_act, self.state_act[1], label='vehicle_status/steer')
             ax2.plot(self.tm_act, self.sim_state_act[:,4], # __STEER
                      label='sim_vehicle_status/steer')
-            if len(self.visual_pts) > 0:
+            if _visual_pts and len(self.visual_pts) > 0:
                 self.visual_pts = np.array(self.visual_pts)
                 zeros = np.zeros(len(self.visual_pts))
                 ax2.scatter(self.visual_pts, zeros, s=5)
