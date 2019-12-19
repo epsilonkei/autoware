@@ -257,7 +257,7 @@ if __name__ == '__main__':
             tm_cmd, input_cmd, tm_act, state_act, init_state = getDataFromLog(args.basename)
             model.physModel.parseData(tm_cmd, input_cmd, tm_act, state_act,
                                       args.lower_cutoff_time, args.upper_cutoff_time)
-        log_folder = time.strftime('%Y%m%d%H%M%S') + '_' + args.log_suffix
+        log_folder = "train_log/" + time.strftime('%Y%m%d%H%M%S') + '_' + args.log_suffix
         f_result = log_folder
         f_model = log_folder + '/saved_model'
         for ele in [f_result, f_model]:

@@ -336,7 +336,7 @@ if __name__ == '__main__':
         return all_vel_loss/iter_cnt, all_steer_loss/iter_cnt, all_dsteer_loss/iter_cnt
     ''' ======================================== '''
     if not args.demo:
-        log_folder = time.strftime("%Y%m%d%H%M%S") + '_' + args.log_suffix
+        log_folder = "train_log/" + time.strftime("%Y%m%d%H%M%S") + '_' + args.log_suffix
         f_result = log_folder
         f_model = log_folder + '/saved_model'
         for ele in [f_result, f_model]:
