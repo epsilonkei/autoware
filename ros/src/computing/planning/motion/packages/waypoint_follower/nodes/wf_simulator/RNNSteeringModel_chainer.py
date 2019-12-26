@@ -128,15 +128,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='wf simulator using Deep RNN with rosbag file input')
     parser.add_argument('--basename', type=str, help='Log basename')
     parser.add_argument('--datcfg', type=str, help='Training data config', metavar='file')
-    parser.add_argument('--lower_cutoff_time', default=0.0, type=float, help='Lower cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time (default is 0.0)')
-    parser.add_argument('--upper_cutoff_time', default=-1.0, type=float, help='Upper cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time, minus value for set upper cutoff_time as the end of bag file (default is -1.0)')
+    parser.add_argument('--lower_cutoff_time', default=0.0, type=float, help='Lower cutoff time[sec], Loss calculation will only consider data from t=lower_cutoff_time to t=upper_cutoff_time (default is 0.0)')
+    parser.add_argument('--upper_cutoff_time', default=-1.0, type=float, help='Upper cutoff time[sec], Loss calculation will only consider data from t=lower_cutoff_time to t=upper_cutoff_time, minus value for set upper cutoff_time as the end of bag file (default is -1.0)')
     parser.add_argument('--demo', '-d', action='store_true', default=False,
                         help='--demo for test predict model')
     parser.add_argument('--load', type=str, default='', help='--load for load saved_model')
     parser.add_argument('--onlySim', '-o', action='store_true', default=False,
                         help='--onlySim for disable using RNN predict')
     parser.add_argument('--onlyHighFric', action='store_true', default=False,
-                        help='--onlySim for apply RNN predict for only High Friction period')
+                        help='--onlyHighFric for apply RNN predict for only High Friction period')
     parser.add_argument('--noGTInput', action='store_true', default=False,
                         help='--noGTInput for training RNN with input from previous simulated output')
     parser.add_argument('--epoch', '-e', type=int, default=200,

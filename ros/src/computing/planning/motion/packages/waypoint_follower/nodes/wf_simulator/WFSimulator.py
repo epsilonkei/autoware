@@ -24,8 +24,8 @@ if __name__ == '__main__':
     pd_data = [None] * len(topics)
     parser = argparse.ArgumentParser(description='wf simulator python Implement with rosbag file input')
     parser.add_argument('--basename', '-b', required=True, type=str, help='rosbag file basename', metavar='file')
-    parser.add_argument('--lower_cutoff_time', default=0.0, type=float, help='Lower cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time (default is 0.0)')
-    parser.add_argument('--upper_cutoff_time', default=-1.0, type=float, help='Upper cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time, minus value for set upper cutoff_time as the end of bag file (default is -1.0)')
+    parser.add_argument('--lower_cutoff_time', default=0.0, type=float, help='Lower cutoff time[sec], Mean Square Error calculation will only consider data from t=lower_cutoff_time to t=upper_cutoff_time (default is 0.0)')
+    parser.add_argument('--upper_cutoff_time', default=-1.0, type=float, help='Upper cutoff time[sec], Mean Square Error calculation will only consider data from t=lower_cutoff_time to t=upper_cutoff_time, minus value for set upper cutoff_time as the end of bag file (default is -1.0)')
     args = parser.parse_args()
     for i, topic in enumerate(topics):
         csv_log = basename_to_csv(rel2abs(args.basename), topic)
