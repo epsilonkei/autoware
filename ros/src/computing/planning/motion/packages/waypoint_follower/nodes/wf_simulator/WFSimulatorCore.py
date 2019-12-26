@@ -206,9 +206,12 @@ class WFSimulator(object):
 
     def MeanSquaredError(self):
         assert len(self.sim_state_act) != 0, 'Simulate should be run before calculating MeanSquaredError'
-        cutoff_index = bisect.bisect_left(self.tm_act, self.__cutoff_time)
-        mse_vel = (np.square(self.sim_state_act[cutoff_index:,3] - self.state_act[0,cutoff_index:])).mean(axis=0)
-        mse_steer = (np.square(self.sim_state_act[cutoff_index:,4] - self.state_act[1,cutoff_index:])).mean(axis=0)
+        lower_cutoff_index = bisect.bisect_left(self.tm_act, self.__lower_cutoff_time)
+        upper_cutoff_index = bisect.bisect_left(self.tm_act, self.__upper_cutoff_time)
+        mse_vel = (np.square(self.sim_state_act[lower_cutoff_index : upper_cutoff_index,3]
+                             - self.state_act[0,lower_cutoff_index : upper_cutoff_index])).mean(axis=0)
+        mse_steer = (np.square(self.sim_state_act[lower_cutoff_index : upper_cutoff_index,4]
+                               - self.state_act[1,lower_cutoff_index : upper_cutoff_index])).mean(axis=0)
         return mse_vel, mse_steer
 
     def plotSimulateResult(self):

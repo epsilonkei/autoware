@@ -5,7 +5,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from fitParamDelayInputModel import rosbag_to_csv, rel2abs
+from rosbag2csv import basename_to_csv, rel2abs
 from WFSimulatorCore import WFSimulator, getYawFromQuaternion
 import argparse
 import numpy as np
@@ -23,11 +23,12 @@ if __name__ == '__main__':
                'current_pose/pose']
     pd_data = [None] * len(topics)
     parser = argparse.ArgumentParser(description='wf simulator python Implement with rosbag file input')
-    parser.add_argument('--bag_file', '-b', required=True, type=str, help='rosbag file', metavar='file')
-    parser.add_argument('--cutoff_time', '-c', default=0.0, type=float, help='Cutoff time[sec], Parameter fitting will only consider data from t= cutoff_time to the end of the bag file (default is 1.0)')
+    parser.add_argument('--basename', '-b', required=True, type=str, help='rosbag file basename', metavar='file')
+    parser.add_argument('--lower_cutoff_time', default=0.0, type=float, help='Lower cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time (default is 0.0)')
+    parser.add_argument('--upper_cutoff_time', default=-1.0, type=float, help='Upper cutoff time[sec], Parameter fitting will only consider data from t=lower_cutoff_time to t=upper_cutoff_time, minus value for set upper cutoff_time as the end of bag file (default is -1.0)')
     args = parser.parse_args()
     for i, topic in enumerate(topics):
-        csv_log = rosbag_to_csv(rel2abs(args.bag_file), topic)
+        csv_log = basename_to_csv(rel2abs(args.basename), topic)
         pd_data[i] = pd.read_csv(csv_log, sep=' ')
     tm_cmd = np.array(list(pd_data[0]['%time'])) * 1e-9
     steer_cmd = np.array(list(pd_data[0]['field']))
@@ -51,7 +52,7 @@ if __name__ == '__main__':
     steer0 = steer_act[0]
     # Create WF simulator instance + intialize (if necessary)
     wfSim = WFSimulator(loop_rate = 50.0, wheel_base = 2.7)
-    wfSim.parseData(tm_cmd, input_cmd, tm_act, state_act, args.cutoff_time)
+    wfSim.parseData(tm_cmd, input_cmd, tm_act, state_act, args.lower_cutoff_time, args.upper_cutoff_time)
     wfSim.prevSimulate((px0, py0, yaw0, v0, steer0))
     # Run simulate
     wfSim.simulate()
